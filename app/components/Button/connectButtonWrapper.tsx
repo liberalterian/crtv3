@@ -101,6 +101,12 @@ export default function ConnectButtonWrapper() {
       walletConnect={{
         projectId: 'dc6a426a325d62879d4b9c6ef6dcedb1',
       }}
+      supportedNFTs={{
+        137: [
+          '0xad597e5b24ad2a6032168c76f49f05d957223cd0',
+          '0xb6b645c3e2025cf69983983266d16a0aa323e2b0',
+        ],
+      }}
       connectModal={{
         size: 'wide',
         privacyPolicyUrl:
@@ -117,38 +123,38 @@ export default function ConnectButtonWrapper() {
           title: 'Welcome to Creative TV',
         },
       }}
-      auth={{
-        chain: polygon,
-        client: client,
-        isLoggedIn: async (address: string) => {
-          console.log('checking if logged in!', { address });
-          return await isLoggedIn();
-        },
-        doLogin: async (
-          params: VerifyLoginPayloadParams,
-        ): Promise<LoginPayload | void> => {
-          console.log('logging in!');
-          const payload = await validatePayload(params);
-          const loginPayload: LoginPayload | void = await login(
-            {
-              payload: params.payload,
-              signature: params.signature, // Add a signature property here
-            },
-            {
-              clientId: 'localhost:3000',
-              redirectUri: 'http://localhost:3000/api/auth/unlock',
-              paywallConfig: paywallConfig,
-            },
-          );
-          return loginPayload;
-        },
-        getLoginPayload: async ({ address }: { address: string }) =>
-          generatePayload({ address }),
-        doLogout: async () => {
-          console.log('logging out!');
-          await logout();
-        },
-      }}
+      // auth={{
+      //   chain: polygon,
+      //   client: client,
+      //   isLoggedIn: async (address: string) => {
+      //     console.log('checking if logged in!', { address });
+      //     return await isLoggedIn();
+      //   },
+      //   doLogin: async (
+      //     params: VerifyLoginPayloadParams,
+      //   ): Promise<LoginPayload | void> => {
+      //     console.log('logging in!');
+      //     const payload = await validatePayload(params);
+      //     const loginPayload: LoginPayload | void = await login(
+      //       {
+      //         payload: params.payload,
+      //         signature: params.signature, // Add a signature property here
+      //       },
+      //       {
+      //         clientId: 'localhost:3000',
+      //         redirectUri: 'http://localhost:3000/api/auth/unlock',
+      //         paywallConfig: paywallConfig,
+      //       },
+      //     );
+      //     return loginPayload;
+      //   },
+      //   getLoginPayload: async ({ address }: { address: string }) =>
+      //     generatePayload({ address }),
+      //   doLogout: async () => {
+      //     console.log('logging out!');
+      //     await logout();
+      //   },
+      // }}
     />
   );
 }
