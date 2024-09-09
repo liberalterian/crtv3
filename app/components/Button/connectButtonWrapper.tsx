@@ -4,7 +4,14 @@ import { client } from '@app/lib/sdk/thirdweb/client';
 import { ACCOUNT_FACTORY_ADDRESS } from '@app/lib/utils/context';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
 import { VerifyLoginPayloadParams, LoginPayload } from 'thirdweb/auth';
-import { defineChain, sepolia, polygon, optimism, base } from 'thirdweb/chains';
+import {
+  defineChain,
+  sepolia,
+  polygon,
+  optimism,
+  base,
+  Chain,
+} from 'thirdweb/chains';
 import {
   generatePayload,
   isLoggedIn,
@@ -123,38 +130,43 @@ export default function ConnectButtonWrapper() {
           title: 'Welcome to Creative TV',
         },
       }}
-      // auth={{
-      //   chain: polygon,
-      //   client: client,
-      //   isLoggedIn: async (address: string) => {
-      //     console.log('checking if logged in!', { address });
-      //     return await isLoggedIn();
-      //   },
-      //   doLogin: async (
-      //     params: VerifyLoginPayloadParams,
-      //   ): Promise<LoginPayload | void> => {
-      //     console.log('logging in!');
-      //     const payload = await validatePayload(params);
-      //     const loginPayload: LoginPayload | void = await login(
-      //       {
-      //         payload: params.payload,
-      //         signature: params.signature, // Add a signature property here
-      //       },
-      //       {
-      //         clientId: 'localhost:3000',
-      //         redirectUri: 'http://localhost:3000/api/auth/unlock',
-      //         paywallConfig: paywallConfig,
-      //       },
-      //     );
-      //     return loginPayload;
-      //   },
-      //   getLoginPayload: async ({ address }: { address: string }) =>
-      //     generatePayload({ address }),
-      //   doLogout: async () => {
-      //     console.log('logging out!');
-      //     await logout();
-      //   },
-      // }}
+      auth={{
+        chain: polygon,
+        client: client,
+        isLoggedIn: async (address: string) => {
+          console.log('checking if logged in!', { address });
+          return await isLoggedIn();
+        },
+        doLogin: async (
+          params: VerifyLoginPayloadParams,
+        ): Promise<LoginPayload | void> => {
+          console.log('logging in!');
+          const payload = await validatePayload(params);
+          const loginPayload: LoginPayload | void = await login(
+            {
+              payload: params.payload,
+              signature: params.signature, // Add a signature property here
+            },
+            {
+              clientId: 'localhost:3000',
+              redirectUri: 'http://localhost:3000/api/auth/unlock',
+              paywallConfig: paywallConfig,
+            },
+          );
+          return loginPayload;
+        },
+        getLoginPayload: async ({
+          address,
+          chainId,
+        }: {
+          address: string;
+          chainId: number;
+        }) => generatePayload({ address, chainId }),
+        doLogout: async () => {
+          console.log('logging out!');
+          await logout();
+        },
+      }}
     />
   );
 }
