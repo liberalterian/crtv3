@@ -18,7 +18,7 @@ import {
   login,
   logout,
   validatePayload,
-} from '@app/api/auth/thirdweb/thirdweb';
+} from '@app/api/auth/thirdweb/route';
 
 export default function ConnectButtonWrapper() {
   const wallets = [
