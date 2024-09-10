@@ -12,7 +12,7 @@ import {
   base,
   Chain,
 } from 'thirdweb/chains';
-import {
+import handler, {
   generatePayload,
   isLoggedIn,
   login,

@@ -1,5 +1,6 @@
 'use server';
 import { inAppWallet } from 'thirdweb/wallets';
+import { NextRequest, NextResponse } from 'next/server';
 import { client } from '@app/lib/sdk/thirdweb/client';
 import {
   VerifyLoginPayloadParams,
@@ -35,6 +36,39 @@ const thirdwebAuth = createAuth({
   adminAccount: privateKeyToAccount({ client, privateKey }), // Convert the private key to an account.
 });
 
+export default async function handler(req: NextRequest, res: NextResponse) {
+  if (req.method === 'POST') {
+    // Handle the authentication logic here
+    try {
+      const { address, signature } = req.body as unknown as {
+        address: string;
+        signature: string;
+      };
+
+      // Generate the login payload
+      const loginPayload = await generatePayload({
+        address,
+        signature,
+      } as GenerateLoginPayloadParams);
+
+      // Set the authentication cookie
+      cookies().set('auth', loginPayload.statement, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+        path: '/',
+      });
+
+      res.json(); // Provide an empty object as the argument to res.json()
+    } catch (error) {
+      res.json();
+    }
+  } else {
+    res.headers.set('Allow', 'POST');
+    res.status;
+  }
+}
+
 // Function to generate a login payload for Sign-In with Ethereum (SIWE) authentication.
 export async function generatePayload(params: GenerateLoginPayloadParams) {
   console.log('generatedPayload params:', params);
@@ -42,6 +76,7 @@ export async function generatePayload(params: GenerateLoginPayloadParams) {
 }
 
 // Function to handle the login process using the SIWE payload.
+
 export async function login(
   payload: VerifyLoginPayloadParams, // The payload containing the signed message and other login details.
   { clientId, redirectUri, paywallConfig }: UnlockSIWEButtonProps, // Destructure the Unlock SIWE button properties.
