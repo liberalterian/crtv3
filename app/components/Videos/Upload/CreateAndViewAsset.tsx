@@ -18,6 +18,7 @@ import {
 import { uploadAssetByURL } from '@app/lib/utils/fetchers/livepeer/livepeerApi';
 import { ACCOUNT_FACTORY_ADDRESS } from '@app/lib/utils/context';
 import { Livepeer } from 'livepeer';
+import { toast } from 'sonner'; // Add this import for error notifications
 
 export default function Upload() {
   // Creating state for the input field
@@ -28,6 +29,7 @@ export default function Upload() {
   const [thumbnail, setThumbnail] = useState<File | string>('');
   const [video, setVideo] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   //  Creating a ref for thumbnail and video
   const thumbnailRef = useRef();
@@ -40,16 +42,21 @@ export default function Upload() {
   };
 
   const createAsset = async (e: NewAssetPayload, type: string) => {
-    setIsUploading(true);
-    const output = await fullLivepeer.asset.create(e);
-    let cid = output?.data;
-    if (type == 'thumbnail') {
-      setThumbnail(cid?.asset?.storage?.ipfs?.nftMetadata?.cid || '');
-    } else {
-      console.log('tusEndpoint:', output?.data?.tusEndpoint);
-      setVideo(output?.data?.tusEndpoint || '');
+    try {
+      setIsUploading(true);
+      const output = await fullLivepeer.asset.create(e);
+      let cid = output?.data;
+      if (type == 'thumbnail') {
+        setThumbnail(cid?.asset?.storage?.ipfs?.nftMetadata?.cid || '');
+      } else {
+        setVideo(output?.data?.tusEndpoint || '');
+      }
+    } catch (error) {
+      console.error('Error creating asset:', error);
+      toast.error('Failed to create asset. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
-    setIsUploading(false);
   };
 
   const uploadToURL = async () => {
@@ -59,23 +66,53 @@ export default function Upload() {
   };
 
   const handleSubmit = async () => {
-    let data = {
-      video,
-      title,
-      description,
-      location,
-      category,
-      thumbnail,
-      UploadedDate: Date.now(),
-    };
-    const collabs: string[] = []; // Initialize collabs
-    const shares: bigint[] = []; // Initialize shares
+    if (!validateForm()) return;
 
-    await uploadToURL();
-    //await saveVideo(data);
-    await getSplits(collabs, shares);
-    await determineVideoAddress();
-    await generateVideoNFT(description, title, video);
+    setIsSubmitting(true);
+    try {
+      const data = {
+        video,
+        title,
+        description,
+        location,
+        category,
+        thumbnail,
+        UploadedDate: Date.now(),
+      };
+      const collabs: string[] = [];
+      const shares: bigint[] = [];
+
+      await uploadToURL();
+      const splits = await getSplits(collabs, shares);
+      const videoAddress = await determineVideoAddress();
+      const videoNFT = await generateVideoNFT(description, title, video);
+
+      // Handle successful submission
+      toast.success('Video uploaded successfully!');
+      // Optionally, redirect or clear form
+    } catch (error) {
+      console.error('Error submitting video:', error);
+      toast.error('Failed to upload video. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const validateForm = () => {
+    if (!title.trim()) {
+      toast.error('Please enter a title');
+      return false;
+    }
+    if (!description.trim()) {
+      toast.error('Please enter a description');
+      return false;
+    }
+    if (!video) {
+      toast.error('Please upload a video');
+      return false;
+    }
+    // Add more validation as needed
+    return true;
   };
 
   const getSplits = async (collabs: string[], shares: bigint[]) => {
@@ -142,30 +179,42 @@ export default function Upload() {
   return (
     <div className="flex h-screen w-full flex-row bg-[#1a1c1f]">
       <div className="flex flex-1 flex-col">
-        <div className="mr-10 mt-5 flex  justify-end">
+        <div className="mr-10 mt-5 flex justify-end">
           <div className="flex items-center">
-            <button className="mr-6  rounded-lg border border-gray-600 bg-transparent px-6  py-2  text-[#9CA3AF]">
+            <button
+              className="mr-6 rounded-lg border border-gray-600 bg-transparent px-6 py-2 text-[#9CA3AF]"
+              onClick={goBack}
+            >
               Discard
             </button>
             <button
-              onClick={() => {
-                handleSubmit();
-              }}
-              className="flex flex-row items-center  justify-between  rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-700"
+              onClick={handleSubmit}
+              disabled={isUploading || isSubmitting}
+              className="flex flex-row items-center justify-between rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              <BiCloud />
-              <p className="ml-2">Upload</p>
+              {isSubmitting ? (
+                'Uploading...'
+              ) : (
+                <>
+                  <BiCloud />
+                  <p className="ml-2">Upload</p>
+                </>
+              )}
             </button>
           </div>
         </div>
         <div className="m-10 mt-5 flex     flex-col  lg:flex-row">
           <div className="flex flex-col lg:w-3/4 ">
-            <label className="text-sm  text-[#9CA3AF]">Title</label>
+            <label htmlFor="title" className="text-sm text-[#9CA3AF]">
+              Title
+            </label>
             <input
+              id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Rick Astley - Never Gonna Give You Up (Official Music Video)"
-              className="mt-2 h-12 w-[90%]  rounded-md border border-[#444752] bg-[#1a1c1f] p-2  text-white placeholder:text-gray-600 focus:outline-none"
+              className="mt-2 h-12 w-[90%] rounded-md border border-[#444752] bg-[#1a1c1f] p-2 text-white placeholder:text-gray-600 focus:outline-none"
+              required
             />
             <label className="mt-10 text-[#9CA3AF]">Description</label>
             <textarea
@@ -218,7 +267,7 @@ export default function Upload() {
                   onClick={() => {
                     thumbnailRef?.current;
                   }}
-                  src={thumbnail}
+                  src={''}
                   alt="thumbnail"
                   className="h-full rounded-md"
                 />
@@ -230,7 +279,7 @@ export default function Upload() {
             <input
               type="file"
               className="hidden"
-              ref={thumbnailRef || null}
+              //ref={}
               onChange={(e) => {
                 const file = e?.target?.files ? e.target.files[0] : null;
                 if (file) {
@@ -265,7 +314,7 @@ export default function Upload() {
               <video
                 controls
                 // Get Playback Sources
-                src={URL.createObjectURL(video)}
+                src={''}
                 className="h-full rounded-md"
               />
             ) : (
@@ -276,11 +325,11 @@ export default function Upload() {
         <input
           type="file"
           className="hidden"
-          ref={videoRef}
+          //ref={videoRef}
           accept={'video/*'}
           onChange={(e) => {
-            setVideo(e?.target?.files[0]);
-            console.log(e?.target?.files[0]);
+            //setVideo(e?.target?.files[0]);
+            //console.log(e?.target?.files[0]);
           }}
         />
       </div>
