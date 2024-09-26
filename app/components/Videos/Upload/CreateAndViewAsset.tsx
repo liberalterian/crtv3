@@ -3,10 +3,13 @@ import { fullLivepeer } from '@app/lib/sdk/livepeer/fullClient';
 import Image from 'next/image';
 import React, { useState, useRef } from 'react';
 import { BiCloud, BiMusic, BiPlus } from 'react-icons/bi';
-import { NewAssetPayload, Asset } from 'livepeer/models/components';
+import { NewAssetPayload } from 'livepeer/models/components';
 import { useActiveAccount } from 'thirdweb/react';
+import { Asset } from 'livepeer/sdk/asset';
 import { polygon } from 'thirdweb/chains';
 import { client } from '@app/lib/sdk/thirdweb/client';
+import { upload } from 'thirdweb/storage';
+
 import {
   deploySplitContract,
   prepareDeterministicDeployTransaction,
@@ -14,31 +17,17 @@ import {
 } from 'thirdweb/deploys';
 import { uploadAssetByURL } from '@app/lib/utils/fetchers/livepeer/livepeerApi';
 import { ACCOUNT_FACTORY_ADDRESS } from '@app/lib/utils/context';
-import { getSrc } from '@livepeer/react/external';
-import PreviewVideo from './PreviewVideo';
-import { Input } from '@app/components/ui/input';
-import { Button } from '@app/components/ui/button';
-
-interface UploadProps {
-  video: Asset;
-  title: string;
-  description: string;
-  category: string;
-  location: string;
-  file: File;
-  UploadedDate: number;
-}
+import { Livepeer } from 'livepeer';
 
 export default function Upload() {
   // Creating state for the input field
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState<string>('');
+  const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [location, setLocation] = useState('');
-  const [video, setVideo] = useState<Asset | null>(null);
+  const [thumbnail, setThumbnail] = useState<File | string>('');
+  const [video, setVideo] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [tusUrl, setTusUrl] = useState<string>('');  
 
   //  Creating a ref for thumbnail and video
   const thumbnailRef = useRef();
@@ -46,101 +35,47 @@ export default function Upload() {
 
   const chain = polygon;
   const activeAccount = useActiveAccount();
-  
-  // Go back to the previous page
   const goBack = () => {
     window.history.back();
   };
 
-  // Create Asset
-  const createAsset = async (e: NewAssetPayload) => {
+  const createAsset = async (e: NewAssetPayload, type: string) => {
     setIsUploading(true);
-    const output = await fullLivepeer?.asset.create(e);
-    const cid = output?.data;
-    const sign = fullLivepeer?.accessControl.create();
-    const tusUpload = cid?.tusEndpoint;
-    
-    console.log('Your TUS URL is:', tusUpload);
-    setTusUrl(tusUpload || '');
-
-    console.log('asset:', cid?.asset);
-    setVideo(cid?.asset || null);
-
+    const output = await fullLivepeer.asset.create(e);
+    let cid = output?.data;
+    if (type == 'thumbnail') {
+      setThumbnail(cid?.asset?.storage?.ipfs?.nftMetadata?.cid || '');
+    } else {
+      console.log('tusEndpoint:', output?.data?.tusEndpoint);
+      setVideo(output?.data?.tusEndpoint || '');
+    }
     setIsUploading(false);
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const input = document.getElementById('fileInput');
-    const file = event.target.files?.[0];
-    if (file) {
-      setFile(file);
-    }
-  };
-
-  // Upload to URL
-  const uploadVideo = async () => {
-    if (video === null) {
-      throw new Error('Video asset is null');
-    }
-    const upload = await uploadAssetByURL(
-      video?.name,
-      tusUrl,
-    );
+  const uploadToURL = async () => {
+    const upload = await uploadAssetByURL(video, 'video');
     console.log('upload', upload);
     return upload;
   };
 
-  const upload = new tus.Upload(file, {
-    endpoint: tusEndpoint, // URL from `tusEndpoint` field in the
-  `/request-upload` response
-    metadata: {
-      filename,
-      filetype: 'video/mp4',
-    },
-    uploadSize: file.size,
-    onError(err) {
-      console.error('Error uploading file:', err);
-    },
-    onProgress(bytesUploaded, bytesTotal) {
-      const percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(2);
-      console.log('Uploaded ' + percentage + '%');
-    },
-    onSuccess() {
-      console.log('Upload finished:', upload.url);
-    },
-  });
-  
-  const previousUploads = await upload.findPreviousUploads();
-  
-  if (previousUploads.length > 0) {
-    upload.resumeFromPreviousUpload(previousUploads[0]);
-  }
-  
-  upload.start()
-
-  
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) =>
-    event.preventDefault();
-    const data = {
+  const handleSubmit = async () => {
+    let data = {
       video,
       title,
       description,
       location,
       category,
-      file,
+      thumbnail,
       UploadedDate: Date.now(),
     };
+    const collabs: string[] = []; // Initialize collabs
+    const shares: bigint[] = []; // Initialize shares
 
-    if (data?.video?.name) {
-      await createAsset({ name: data.video.name } as NewAssetPayload,);
-    } else {
-      throw new Error('Video name is undefined');
-    }
+    await uploadToURL();
     //await saveVideo(data);
-    // await getSplits(collabs, shares);
-    // await determineVideoAddress();
-    // await generateVideoNFT(description, title, video);
+    await getSplits(collabs, shares);
+    await determineVideoAddress();
+    await generateVideoNFT(description, title, video);
   };
 
   const getSplits = async (collabs: string[], shares: bigint[]) => {
@@ -205,23 +140,39 @@ export default function Upload() {
   //   };
 
   return (
-    <div className="flex min-h-screen w-full flex-col">
-      <div className="flex-1 p-4 md:p-10">
-        <div className="m-10 mt-5 flex flex-col lg:flex-row">
+    <div className="flex h-screen w-full flex-row bg-[#1a1c1f]">
+      <div className="flex flex-1 flex-col">
+        <div className="mr-10 mt-5 flex  justify-end">
+          <div className="flex items-center">
+            <button className="mr-6  rounded-lg border border-gray-600 bg-transparent px-6  py-2  text-[#9CA3AF]">
+              Discard
+            </button>
+            <button
+              onClick={() => {
+                handleSubmit();
+              }}
+              className="flex flex-row items-center  justify-between  rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-700"
+            >
+              <BiCloud />
+              <p className="ml-2">Upload</p>
+            </button>
+          </div>
+        </div>
+        <div className="m-10 mt-5 flex     flex-col  lg:flex-row">
           <div className="flex flex-col lg:w-3/4 ">
             <label className="text-sm  text-[#9CA3AF]">Title</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Rick Astley - Never Gonna Give You Up (Official Music Video)"
-              className="mt-2 h-12 w-[90%]  rounded-md border border-[#444752] p-2 placeholder:text-gray-600 focus:outline-none"
+              className="mt-2 h-12 w-[90%]  rounded-md border border-[#444752] bg-[#1a1c1f] p-2  text-white placeholder:text-gray-600 focus:outline-none"
             />
             <label className="mt-10 text-[#9CA3AF]">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Never Gonna Give You Up was a global smash on its release in July 1987, topping the charts in 25 countries including Rick’s native UK and the US Billboard Hot 100.  It also won the Brit Award for Best single in 1988. Stock Aitken and Waterman wrote and produced the track which was the lead-off single and lead track from Rick’s debut LP “Whenever You Need Somebody."
-              className="mt-2 h-32 w-[90%] rounded-md  border border-[#444752] p-2 placeholder:text-gray-600 focus:outline-none"
+              className="mt-2 h-32 w-[90%] rounded-md  border border-[#444752] bg-[#1a1c1f] p-2  text-white placeholder:text-gray-600 focus:outline-none"
             />
 
             <div className="mt-10 flex w-[90%] flex-row  justify-between">
@@ -232,7 +183,7 @@ export default function Upload() {
                   onChange={(e) => setLocation(e.target.value)}
                   type="text"
                   placeholder="Bali - Indonesia"
-                  className="mt-2 h-12 w-[90%]  rounded-md border border-[#444752] p-2 placeholder:text-gray-600 focus:outline-none"
+                  className="mt-2 h-12 w-[90%]  rounded-md border border-[#444752] bg-[#1a1c1f] p-2  text-white placeholder:text-gray-600 focus:outline-none"
                 />
               </div>
               <div className="flex w-2/5 flex-col    ">
@@ -240,7 +191,7 @@ export default function Upload() {
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="mt-2 h-12 w-[90%]  rounded-md border border-[#444752] p-2 placeholder:text-gray-600 focus:outline-none"
+                  className="mt-2 h-12 w-[90%]  rounded-md border border-[#444752] bg-[#1a1c1f] p-2  text-white placeholder:text-gray-600 focus:outline-none"
                 >
                   <option>Music</option>
                   <option>Sports</option>
@@ -265,15 +216,9 @@ export default function Upload() {
               {thumbnail ? (
                 <Image
                   onClick={() => {
-                    if (thumbnailRef?.current) {
-                      (thumbnailRef.current as HTMLElement).click();
-                    }
+                    thumbnailRef?.current;
                   }}
-                  src={
-                    typeof thumbnail === 'string'
-                      ? thumbnail
-                      : URL.createObjectURL(thumbnail)
-                  }
+                  src={thumbnail}
                   alt="thumbnail"
                   className="h-full rounded-md"
                 />
@@ -285,10 +230,22 @@ export default function Upload() {
             <input
               type="file"
               className="hidden"
+              ref={thumbnailRef || null}
               onChange={(e) => {
                 const file = e?.target?.files ? e.target.files[0] : null;
                 if (file) {
                   setThumbnail(file);
+                  //Upload to IPFS
+                  upload({
+                    client: client,
+                    files: [
+                      {
+                        name: 'thumbnail',
+                        data: file,
+                        type: 'image/png',
+                      },
+                    ],
+                  });
                 }
               }}
             />
@@ -304,41 +261,28 @@ export default function Upload() {
                 : 'mt-8 flex  h-64 w-96 items-center justify-center   rounded-md border-2 border-dashed border-gray-600'
             }
           >
-            {video && <PreviewVideo video={video} />}
+            {video ? (
+              <video
+                controls
+                // Get Playback Sources
+                src={URL.createObjectURL(video)}
+                className="h-full rounded-md"
+              />
+            ) : (
+              <p className="text-[#9CA3AF]">Upload Video</p>
+            )}
           </div>
         </div>
-        <Input
+        <input
           type="file"
-          id="fileInput"
           className="hidden"
+          ref={videoRef}
           accept={'video/*'}
           onChange={(e) => {
-            const file = e?.target?.files ? e.target.files[0] : null;
-            if (file) {
-              const videoAsset: Asset = {
-                id: video?.id || '', // Replaced with a real unique id generator
-                source: getSrc(video?.playbackId || null),
-                // Add other properties of Asset if needed
-              };
-              setVideo(videoAsset);
-              console.log(videoAsset);
-            }
+            setVideo(e?.target?.files[0]);
+            console.log(e?.target?.files[0]);
           }}
         />
-      </div>
-      <div className="flex justify-end p-4 md:p-10">
-        <div className="flex w-full flex-col items-center gap-4 sm:w-auto sm:flex-row">
-          <Button className="w-full rounded-lg border border-gray-600 bg-transparent px-6 py-2 sm:w-auto">
-            Discard
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            className="flex w-full flex-row items-center justify-center rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-700 sm:w-auto"
-          >
-            <BiCloud />
-            <p className="ml-2">Upload</p>
-          </Button>
-        </div>
       </div>
     </div>
   );
