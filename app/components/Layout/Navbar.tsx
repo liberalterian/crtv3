@@ -183,7 +183,7 @@ export function Navbar() {
           <ThemeToggleComponent />
         </div>
         <div className="mr-5">
-          {/* <CRTVConnectButton /* onLoginLogout={() => { setIsLoggedIn(!isLoggedIn) }} */ /> */}
+          {/* <CRTVConnectButton /* onLoginLogout={() => { setIsLoggedIn(!isLoggedIn) }} /> */}
           <ConnectButtonWrapper />
         </div>
         {activeAccount && (
