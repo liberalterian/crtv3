@@ -129,8 +129,8 @@ export function Navbar() {
             <div>
               <ThemeToggleComponent />
             </div>
-            {/* <CRTVConnectButton /> */}
-            <ConnectButtonWrapper />
+            <CRTVConnectButton active={activeAccount} />
+            {/* <ConnectButtonWrapper /> */}
             {activeAccount && (
               <div className="mt-5">
                 <ClaimLockButton closeMenu={() => setIsMenuOpen(false)} />
@@ -183,8 +183,8 @@ export function Navbar() {
           <ThemeToggleComponent />
         </div>
         <div className="mr-5">
-          {/* <CRTVConnectButton /* onLoginLogout={() => { setIsLoggedIn(!isLoggedIn) }} /> */}
-          <ConnectButtonWrapper />
+          <CRTVConnectButton active={activeAccount} />
+          {/* <ConnectButtonWrapper /> */}
         </div>
         {activeAccount && (
           <ClaimLockButton closeMenu={() => setIsMenuOpen(false)} />

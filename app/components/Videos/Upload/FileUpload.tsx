@@ -8,13 +8,8 @@ import PreviewVideo from './PreviewVideo';
 import { useActiveAccount } from 'thirdweb/react';
 import { Progress } from '@app/components/ui/progress';
 import { Button } from '@app/components/ui/button';
-// import { generateTextFromAudio } from '@app/api/livepeer/audioToText';
-import { AssetMetadata } from '../../../lib/sdk/orbisDB/models/AssetMetadata';
+import { AssetMetadata, Subtitles, Chunk } from '../../../lib/sdk/orbisDB/models/AssetMetadata';
 import { useOrbisContext } from '@app/lib/sdk/orbisDB/context';
-import { upload, download } from 'thirdweb/storage';
-import { client } from '@app/lib/sdk/thirdweb/client';
-import { fullLivepeer } from '@app/lib/sdk/livepeer/fullClient';
-import { openAsBlob } from 'node:fs';
 
 // Add these functions to your component
 
@@ -25,7 +20,6 @@ const truncateUri = (uri: string): string => {
 
 const copyToClipboard = (text: string) => {
   navigator.clipboard.writeText(text).then(() => {
-    // Optionally, you can show a temporary "Copied!" message here
     toast('IPFS URI Copied!');
   });
 };
@@ -33,10 +27,77 @@ const copyToClipboard = (text: string) => {
 interface FileUploadProps {
   onFileSelect: (file: File | null) => void;
   onFileUploaded: (fileUrl: string) => void;
-  onPressNext?: (livePeerAssetId: string) => void; //  optional
-  onPressBack?: () => void; //  optional
-  metadata?: any; // optional
-  newAssetTitle?: string; // optional
+  onPressNext?: (livePeerAssetId: string) => void;
+  onPressBack?: () => void;
+  metadata?: any;
+  newAssetTitle?: string;
+}
+
+const translateText = async (text: string, language: string): Promise<string> => {
+  try {
+    const res = await fetch('/api/livepeer/subtitles/translation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text,
+        source: 'en',
+        target: language
+      })
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+
+    const data = await res.json();
+    return data.response;
+  } catch (error) {
+    console.error('Translation error:', error);
+    return text; // Fallback to original text if translation fails
+  }
+};
+
+async function translateSubtitles(data: { chunks: Chunk[] }): Promise<Subtitles> {
+  // Initialize subtitles with English chunks
+  interface Subtitles {
+    [key: string]: Chunk[];
+  }
+
+  const subtitles: Subtitles = {
+    'English': data.chunks
+  };
+
+  const languages = ["Chinese", "German", "Spanish"];
+
+  // Create a single Promise.all for all language translations to reduce nested mapping
+  const translationPromises = languages.map(async (language) => {
+    // Skip translation for English
+    if (language === "English") return null;
+
+    // Perform translations concurrently for each chunk
+    const translatedChunks = await Promise.all(
+      data.chunks.map(async (chunk) => ({
+        text: await translateText(chunk.text, language),
+        timestamp: chunk.timestamp
+      }))
+    );
+
+    return { [language]: translatedChunks };
+  });
+
+  // Filter out null results and combine translations
+  const translations = await Promise.all(translationPromises);
+  const languageTranslations = translations.filter(Boolean);
+
+  // Merge translations efficiently
+  return languageTranslations.filter(
+    (translation): translation is { [key: string]: Chunk[] } => translation !== null)
+      .reduce((acc, curr) => ({
+        ...acc,
+        ...curr
+      }), subtitles);
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({
@@ -47,7 +108,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
   metadata,
   newAssetTitle,
 }) => {
-  // Destructure onFileUploaded
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
   const [uploadedUri, setUploadedUri] = useState<string | null>(null);
@@ -62,14 +122,14 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [livePeerUploadedAssetId, setLivePeerUploadedAssetId] =
     useState<string>();
 
-  const { insert } = useOrbisContext();
+  const { assetMetadataID, insert } = useOrbisContext();
 
   const activeAccount = useActiveAccount();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
     setSelectedFile(file);
-    onFileSelect(file); // Notify parent component of the selected file
+    onFileSelect(file);
     console.log('Selected file:', file?.name);
   };
 
@@ -85,16 +145,16 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
     try {
       console.log('Start upload #1');
+
       const uploadRequestResult = await getLivepeerUploadUrl(
         newAssetTitle || selectedFile.name || 'new file name',
         activeAccount?.address || 'anonymous',
       );
 
-      // Save asset id to send back to parent component later
       setLivePeerUploadedAssetId(uploadRequestResult?.asset.id);
 
       const tusUpload = new tus.Upload(selectedFile, {
-        endpoint: uploadRequestResult?.tusEndpoint, // URL from `tusEndpoint` field in the
+        endpoint: uploadRequestResult?.tusEndpoint,
         metadata: {
           filename: selectedFile.name,
           filetype: 'video/mp4',
@@ -110,9 +170,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         },
         onSuccess() {
           console.log('Upload finished:', tusUpload.url);
-
           setUploadState('complete');
-          // Call onFileUploaded here with the upload URL
           onFileUploaded(tusUpload?.url || '');
         },
       });
@@ -125,123 +183,51 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       tusUpload.start();
 
-      console.log('Start generateTextFromAudio');
-
       const formData = new FormData();
 
-      formData.append(
-        'audio',
-        /* await openAsBlob(file) */ new Blob([selectedFile], {
-          type: selectedFile.type,
-        }),
-      );
-      formData.append('model_id', 'openai/whisper-large-v3');
-
-      console.log({ formData });
+      formData.append('audio',  new Blob([selectedFile], { type: selectedFile.type }));
 
       const options = {
         method: 'POST',
         body: formData,
-        headers: {
-          Authorization: `Bearer ${process.env.LIVEPEER_FULL_API_KEY}`,
-        },
+        headers: { Authorization: `Bearer ${process.env.LIVEPEER_API_KEY}` }
       };
-
-      const res = await fetch(
-        'https://dream-gateway.livepeer.cloud/audio-to-text',
-        options,
-      );
+      
+      const res = await fetch('/api/livepeer/subtitles/audio-to-text', options)
 
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
-
+      
       const data = await res.json();
-
-      console.log('status', data.status);
-      console.log('data', data);
-
-      const vttText = generateVTTContent(data?.chunks);
-      const blob = new Blob([vttText], { type: 'text/vtt' });
-      const vttFile = new File([blob], `${selectedFile.name}-en.vtt`);
-
-      console.log({ vttFile });
-
-      const subtitlesUri = await upload({
-        client,
-        files: [vttFile],
-      });
-
-      console.log('subtitlesUri', subtitlesUri);
+    
+      const subtitles = await translateSubtitles(data);
 
       const orbisMetadata: AssetMetadata = {
         playbackId: uploadRequestResult?.asset.id,
         title: newAssetTitle,
         description: metadata?.description,
-        ...(metadata?.location !== undefined && {
-          location: metadata?.location,
-        }),
-        ...(metadata?.category !== undefined && {
-          category: metadata?.category,
-        }),
-        ...(metadata?.thumbnailUri !== undefined && {
-          thumbnailUri: metadata?.thumbnailUri,
-        }),
-        ...(subtitlesUri !== undefined && { subtitlesUri: subtitlesUri }),
+        ...(metadata?.location !== undefined && { location: metadata?.location }),
+        ...(metadata?.category !== undefined && { category: metadata?.category }),
+        ...(metadata?.thumbnailUri !== undefined && { thumbnailUri: metadata?.thumbnailUri }),
+        ...(subtitles !== undefined && { subtitles: subtitles }),
       };
 
-      console.log({ orbisMetadata, subtitles });
+      console.log({ orbisMetadata });
 
       const metadataUri = await insert(
-        orbisMetadata,
-        'kjzl6hvfrbw6c9vo5z3ctmct12rqfb7cb0t37lrtyh1rwjmau71gvy3xt9zv5e4',
+        orbisMetadata, 
+        assetMetadataID
       );
 
       console.log('metadataUri', metadataUri);
+
     } catch (error: any) {
       console.error('Error uploading file:', error);
       setError('Failed to upload file. Please try again.');
       setUploadState('idle');
     }
   };
-
-  function secondsToVTTTime(seconds: number): string {
-    // Handle negative numbers or invalid input
-    if (seconds < 0) seconds = 0;
-
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    const milliseconds = Math.floor((seconds * 1000) % 1000);
-
-    // Format with leading zeros and ensure milliseconds has 3 digits
-    return `${hours.toString().padStart(2, '0')}:${minutes
-      .toString()
-      .padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${milliseconds
-      .toString()
-      .padStart(3, '0')}`;
-  }
-
-  function generateVTTContent(subtitles: /* SubtitleEntry */ any[]): string {
-    // Start with the WebVTT header
-    let vttContent = 'WEBVTT\n\n';
-
-    // Process each subtitle entry
-    subtitles.forEach((subtitle, index) => {
-      const [startTime, endTime] = subtitle.timestamp;
-
-      // Add cue number (optional but helpful for debugging)
-      vttContent += `${index + 1}\n`;
-
-      // Add timestamp line
-      vttContent += `${secondsToVTTTime(startTime)} --> ${secondsToVTTTime(endTime)}\n`;
-
-      // Add subtitle text and blank line
-      vttContent += `${subtitle.text}\n\n`;
-    });
-
-    return vttContent;
-  }
 
   return (
     <div>
@@ -363,4 +349,260 @@ const FileUpload: React.FC<FileUploadProps> = ({
   );
 };
 
-export default FileUpload;
+export default FileUpload; 
+   
+// const data = {
+      //   "chunks": [
+      //       {
+      //           "text": " Look, you know I love a tiger",
+      //           "timestamp": [
+      //               0,
+      //               2
+      //           ]
+      //       },
+      //       {
+      //           "text": " She got the Banzai Maya",
+      //           "timestamp": [
+      //               2,
+      //               4
+      //           ]
+      //       },
+      //       {
+      //           "text": " I'm about to buy that bitch a car",
+      //           "timestamp": [
+      //               4,
+      //               6
+      //           ]
+      //       },
+      //       {
+      //           "text": " I'm about to send Ardy the wire",
+      //           "timestamp": [
+      //               6,
+      //               8
+      //           ]
+      //       },
+      //       {
+      //           "text": " You know I love a tiger",
+      //           "timestamp": [
+      //               8,
+      //               9
+      //           ]
+      //       },
+      //       {
+      //           "text": " I skirt her high ass like a tire",
+      //           "timestamp": [
+      //               9,
+      //               11
+      //           ]
+      //       },
+      //       {
+      //           "text": " She like Papi on fire",
+      //           "timestamp": [
+      //               11,
+      //               13
+      //           ]
+      //       },
+      //       {
+      //           "text": " She like Papi on fire",
+      //           "timestamp": [
+      //               13,
+      //               15
+      //           ]
+      //       },
+      //       {
+      //           "text": " 4'4'' barkin' egg",
+      //           "timestamp": [
+      //               15,
+      //               16
+      //           ]
+      //       },
+      //       {
+      //           "text": " Louder than the church choir",
+      //           "timestamp": [
+      //               16,
+      //               18
+      //           ]
+      //       },
+      //       {
+      //           "text": " I do a drill in the suit",
+      //           "timestamp": [
+      //               18,
+      //               20
+      //           ]
+      //       },
+      //       {
+      //           "text": " Then I change my attire",
+      //           "timestamp": [
+      //               20,
+      //               21
+      //           ]
+      //       },
+      //       {
+      //           "text": " Look, she throw that ass back in a quick sec",
+      //           "timestamp": [
+      //               21,
+      //               23
+      //           ]
+      //       }
+      //   ],
+      //   "text": " Look, you know I love a tiger She got the Banzai Maya I'm about to buy that bitch a car I'm about to send Ardy the wire You know I love a tiger I skirt her high ass like a tire She like Papi on fire She like Papi on fire 4'4'' barkin' egg Louder than the church choir I do a drill in the suit Then I change my attire Look, she throw that ass back in a quick sec"
+      // };
+
+      // let subtitles: Subtitles = {};
+      
+      // const languages = [
+      //   "English", 
+      //   "Chinese", 
+      //   "German", 
+      //   "Spanish"
+      // ];
+      
+      // languages.forEach((language: string) => {
+      //   subtitles[language] = [
+      //       ...data.chunks.map(async (chunk: Chunk) => {
+      //         if (language !== "English") {
+      //           const res = await fetch(
+      //             'https://dream-gateway.livepeer.cloud/llm',
+      //             {
+      //               method: 'POST',
+      //               body: JSON.stringify({
+      //                 text: `Translate the string literal ${chunk.text} from Latin to English. Only provide the exact translation, no additional text is required.`,
+      //                 source: 'en',
+      //                 target: language
+      //               }),
+      //               headers: { 'Content-Type': 'application/json' }
+      //             }
+      //           ); 
+      //           if (!res.ok) {
+      //             throw new Error(`HTTP error! status: ${res.status}`);
+      //           } else {
+      //             const data = await res.json();
+      //             chunk.text = data.response.replace('assistant\n\n', '');
+      //           }
+      //           return chunk;
+      //         }
+      //         return chunk;
+      //       })
+      //     ]
+      // });
+
+// let subtitles: Subtitles = {
+        // 'English': data.chunks,
+      // };
+      
+      // const languages = [
+      //   "Chinese", 
+      //   "German", 
+      //   "Spanish"
+      // ];
+      
+      // subtitles = await Promise.all(
+      //   languages.map(async (language: string, i: number) => {
+      //     console.log('language - ' + i + ' ', language);
+      //     const translatedChunks = await Promise.all(
+      //       data?.chunks.map(async (chunk: Chunk) => {
+      //         if (language !== "English") {
+      //           console.log('chunk - ' + i + ' ', chunk);
+      //           console.log('language - ' + i + ' ', language);
+      //           const translatedText: string = await translateText(chunk.text, language);
+      //           console.log('translatedText - ' + i + '', translatedText);
+      //           return {
+      //             text: translatedText,
+      //             timestamp: chunk.timestamp
+      //           };
+      //         }
+      //         console.log('chunk - ' + i + ' ', chunk);
+      //         return chunk;
+      //       })
+      //     );
+      //     return { [language]: translatedChunks };
+      //   })
+      // ).then(results => {
+      //   const obj = Object.assign({}, ...results);
+      //   console.log('obj', obj);
+      //   return obj;
+      // });
+
+ // const formData = new FormData();
+      
+      // formData.append('audio', audioBlob);
+      // formData.append('model_id', 'openai/whisper-large-v3');
+
+      // const options = {
+      //   method: 'POST',
+      //   body: formData,
+      //   headers: {
+      //     Authorization: `Bearer ${process.env.LIVEPEER_FULL_API_KEY}`,
+      //   },
+      // };
+
+      // const res = await fetch(
+      //   'https://dream-gateway.livepeer.cloud/audio-to-text',
+      //   options,
+      // );
+
+      // const result = await fullLivepeer.generate.audioToText({
+      //   audio: audioBlob,
+      // });
+
+      // if (!result) {
+      //   throw new Error(`HTTP error!`);
+      // }
+
+      // const data: TextResponse = result.textResponse || { text: '', chunks: [] };
+
+      // let result;
+
+      // try {
+      //   const formData = new FormData();
+      //   formData.append('blob', new Blob([selectedFile], { type: selectedFile.type }));
+      //   const response = await fetch('/api/livepeer/audio-to-text', {
+      //     method: 'POST',
+      //     headers: {
+      //       'Content-Type': 'application/json',
+      //     },
+      //     body: formData
+      //   });
+    
+      //   if (!response.ok) {
+      //     throw new Error(`HTTP error! status: ${response.status}`);
+      //   }
+    
+      //   result = await response.json();
+        
+      //   if (!result.success) {
+      //     throw new Error(result.message);
+      //   }
+    
+      // } catch (error) {
+      //   console.error('Error converting audio to text:', error);
+      //   throw error;
+      // }
+
+// const jsonBody = JSON.stringify({
+      //   audioBlob,
+      //   newAssetTitle,
+      //   metadata,
+      //   livePeerUploadedAssetId
+      // });
+
+      // console.log({ jsonBody });
+
+      // const res = await fetch('/api/liveper/subtitles', {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: jsonBody,
+      // });
+
+      // if (!res.ok) {
+      //   console.error(res);
+      //   throw new Error(`HTTP error! status: ${res.status} ${res.statusText}`);
+      // }
+
+      // const data = await res.json();
+
+      // const { metadataUri, subtitles } = data;
+
+      // console.log({ metadataUri, subtitles });

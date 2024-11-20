@@ -6,49 +6,67 @@ declare global {
 
 import { createContext, ReactNode, useContext, useState } from 'react';
 import { db } from './client';
-import { catchError } from '@useorbis/db-sdk/util';
-import { OrbisEVMAuth } from '@useorbis/db-sdk/auth';
-import { OrbisConnectResult } from '@useorbis/db-sdk';
-import { Wallet } from 'ethers';
+import { catchError } from "@useorbis/db-sdk/util"
+import { OrbisEVMAuth } from "@useorbis/db-sdk/auth";
+import {  OrbisConnectResult } from '@useorbis/db-sdk';
+// import { Wallet } from 'ethers';
 import { AssetMetadata } from './models/AssetMetadata';
-import { title } from 'process';
 
 interface OrbisContextProps {
-  authResult: OrbisConnectResult | null;
-  setAuthResult: React.Dispatch<
-    React.SetStateAction<OrbisConnectResult | null>
-  >;
-  insert: (value: any, modelId: string) => Promise<void>;
-  update: (docId: string, updates: any) => Promise<void>;
-  getAssetMetadata: (assetId: string) => Promise<any>;
-  orbisLogin: (privateKey?: string) => Promise<OrbisConnectResult>;
-  isConnected: (address: string) => Promise<Boolean>;
-  getCurrentUser: () => Promise<any>;
+    assetMetadataID: string;
+    authResult: OrbisConnectResult | null;
+    setAuthResult: React.Dispatch<React.SetStateAction<OrbisConnectResult | null>>;
+    insert: (value: any, modelId: string) => Promise<void>;
+    update: (docId: string, updates: any) => Promise<void>;
+    getAssetMetadata: (assetId: string) => Promise<AssetMetadata>;
+    orbisLogin: (privateKey?: string) => Promise<void>;
+    isConnected: (address: string) => Promise<Boolean>;
+    getCurrentUser: () => Promise<any>;
 }
 
 const OrbisContext = createContext<OrbisContextProps | undefined>({
-  authResult: null,
-  setAuthResult: () => {},
-  insert: async () => {},
-  update: async () => {},
-  getAssetMetadata: async () => {
-    return { columns: [], rows: [] };
-  },
-  orbisLogin: async () => ({}) as OrbisConnectResult,
-  isConnected: async () => false,
-  getCurrentUser: async () => {},
+    authResult: null,
+    setAuthResult: () => {},
+    insert: async () => {},
+    update: async () => {},
+    getAssetMetadata: async () => { 
+        return { 
+            assetId: '',
+            playbackId: '',
+            title: '',
+            description: '',
+            location: '',
+            category: '',
+            thumbnailUri: '',
+            subtitles: {
+                'English': [
+                    {
+                        text: '',
+                        startTime: 0,
+                        endTime: 1
+                    }
+                ]
+            },
+        } 
+    },
+    orbisLogin: async () => {},
+    isConnected: async () => false,
+    getCurrentUser: async () => {}
 });
 
 const crtvEnvId = process.env.ORBIS_ENVIRONMENT_ID || '';
+const crtvContextId = process.env.ORBIS_APP_CONTEXT || '';   
 
 export const OrbisProvider = ({ children }: { children: ReactNode }) => {
-  const [authResult, setAuthResult] = useState<OrbisConnectResult | null>(null);
+    const assetMetadataID: string = '';
 
-  const insert = async (value: any, modelId: string): Promise<void> => {
-    console.log('insert', { value, modelId });
-    if (!value) {
-      throw new Error('No value provided. Please provide a value to insert.');
-    }
+    const [authResult, setAuthResult] = useState<OrbisConnectResult | null>(null);
+    
+    const insert = async (value: any, modelId: string): Promise<void> => {
+        console.log('insert', { value, modelId });
+        if (!value) {
+            throw new Error('No value provided. Please provide a value to insert.')
+        }
 
     if (!modelId) {
       throw new Error('No modelId provided. Please provide a modelId.');
@@ -56,7 +74,12 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
 
     let insertStatement: any;
 
-    insertStatement = await db.insert(modelId).value(value).context(crtvEnvId);
+        insertStatement = await db
+            .insert(modelId)
+            .value(
+                value
+            )
+            .context(crtvContextId);
 
     const validation = await insertStatement.validate();
 
@@ -88,16 +111,16 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
     console.log(updateStatement.runs);
   };
 
-  const getAssetMetadata = async (
-    assetId: string,
-  ): Promise<{ columns: Array<string>; rows: Array<Record<string, any>> }> => {
-    const selectStatement = await db
-      .select()
-      .from('AssetMetadata')
-      .where({
-        column: assetId,
-      })
-      .context(crtvEnvId);
+    const getAssetMetadata = async (assetId: string): Promise<AssetMetadata> => {
+        const selectStatement = await db
+            .select()
+            .from("AssetMetadata")
+            .where(
+                {
+                    column: assetId,
+                }
+            )
+            .context(crtvEnvId)
 
     const query = selectStatement.build();
 
@@ -118,11 +141,10 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
     return result;
   };
 
-  const orbisLogin =
-    async (/* privateKey: string = '' */): Promise<OrbisConnectResult> => {
-      // console.log({ privateKey });
-
-      let provider;
+    const orbisLogin = async (/* privateKey?: string = '' */): Promise<void> => {
+        // console.log({ privateKey });
+        
+        let provider; 
 
       // if (privateKey !== '') {
       // Browser provider
@@ -132,7 +154,7 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
       //     provider = new Wallet(privateKey);
       // }
 
-      // console.log({ provider });
+        console.log({ provider });
 
       // Orbis Authenticator
       const auth = new OrbisEVMAuth(provider);
@@ -175,22 +197,21 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
     return currentUser;
   };
 
-  return (
-    <OrbisContext.Provider
-      value={{
-        authResult,
-        setAuthResult,
-        insert,
-        update,
-        getAssetMetadata,
-        orbisLogin,
-        isConnected,
-        getCurrentUser,
-      }}
-    >
-      {children}
-    </OrbisContext.Provider>
-  );
+    return (
+        <OrbisContext.Provider value={{ 
+            assetMetadataID,
+            authResult,
+            setAuthResult,
+            insert,
+            update,
+            getAssetMetadata,
+            orbisLogin,
+            isConnected,
+            getCurrentUser
+        }}>
+            {children}
+        </OrbisContext.Provider>
+    );
 };
 
 export const useOrbisContext = () => {

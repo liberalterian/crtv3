@@ -14,17 +14,14 @@ import { client } from '@app/lib/sdk/thirdweb/client';
 import { useOrbisContext } from '@app/lib/sdk/orbisDB/context';
 import { Button } from '@chakra-ui/react';
 import React, { useEffect, useState } from 'react';
+import { ThirdwebAccount } from 'thirdweb/react';
 
-// interface CRTVConnectButtonProps {
-//   onLoginLogout: () => Promise<void>;
-// }
 
-const CRTVConnectButton: React.FC</* CRTVConnectButtonProps */ any> = (/* {  
-  onLoginLogout: () => Promise<void>
-} */) => {
+const CRTVConnectButton: React.FC<{ active: any }> = ({ active }) => {
   const [isActivelyLoggedIn, setIsLoggedIn] = useState(false);
 
   const account = useActiveAccount();
+  const [activeAccount, setActiveAccount] = useState<any>(active);
   const chain = useActiveWalletChain();
   const { connect, isConnecting, error } = useConnect();
 
@@ -44,11 +41,7 @@ const CRTVConnectButton: React.FC</* CRTVConnectButtonProps */ any> = (/* {
 
   async function handleClick() {
     if (!isActivelyLoggedIn) {
-      // console.log({ account, chain });
-
-      let activeAccount;
-
-      if (!account) {
+      if (!account || !activeAccount) {
         try {
           const wallet = await connect(async () => {
             const wallet = createWallet('io.metamask');
@@ -57,50 +50,48 @@ const CRTVConnectButton: React.FC</* CRTVConnectButtonProps */ any> = (/* {
             });
             return wallet;
           });
-
           if (!wallet) {
             throw new Error('Failed to connect wallet');
           }
-
-          activeAccount = wallet.getAccount();
+          setActiveAccount(wallet.getAccount());
         } catch (error) {
           console.error('Wallet connection failed:', error);
           return; // Exit early if connection fails
         }
       } else {
-        activeAccount = account;
+        setActiveAccount(account);
       }
 
-      console.log('activeAccount', activeAccount);
+      if (activeAccount) {
+        console.log('activeAccount', activeAccount);
 
-      // Step 1: fetch the payload from the server
-      const payload = await generatePayload({
-        address: activeAccount.address,
-        chainId: 137, // chain.id,
-      });
+        // Step 1: fetch the payload from the server
+        const payload = await generatePayload({
+          address: activeAccount?.address,
+          chainId: 137, // chain.id,
+        });
 
-      // console.log({ payload });
+        // console.log({ payload });
 
-      // Step 2: Sign the payload
-      const signatureResult = await signLoginPayload({
-        payload,
-        account: activeAccount,
-      });
+        // Step 2: Sign the payload
+        const signatureResult = await signLoginPayload({
+          payload,
+          account: activeAccount,
+        });
 
-      // console.log({ signatureResult });
+        // console.log({ signatureResult });
 
-      // Step 3: Send the signature to the server for verification
-      const finalResult = await login(signatureResult);
+        // Step 3: Send the signature to the server for verification
+        const finalResult = await login(signatureResult);
 
-      // console.log({ finalResult });
+        // console.log({ finalResult });
 
-      if (finalResult.valid) {
-        const orbisDBAuthResult = await orbisLogin();
-        console.log({ orbisDBAuthResult });
-        setIsLoggedIn(true);
+        if (finalResult.valid) {
+          const orbisDBAuthResult = await orbisLogin();
+          console.log({ orbisDBAuthResult });
+          setIsLoggedIn(true);
+        }
       }
-
-      // alert(finalResult.valid ? "Login successful" : "Login failed");
     }
   }
 
