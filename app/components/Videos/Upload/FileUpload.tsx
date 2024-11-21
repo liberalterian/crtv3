@@ -76,9 +76,7 @@ async function translateSubtitles(data: { chunks: Chunk[] }): Promise<Subtitles>
   const translationPromises = languages.map(async (language) => {
     // Skip translation for English
     if (language === "English") return null;
-
     console.log('Translating to:', language);
-
     // Perform translations concurrently for each chunk
     const translatedChunks = await Promise.all(
       data.chunks.map(async (chunk, i) => {
