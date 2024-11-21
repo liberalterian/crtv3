@@ -3,6 +3,7 @@
 import { fullLivepeer } from '@app/lib/sdk/livepeer/fullClient';
 import { InputCreatorIdType } from 'livepeer/models/components';
 
+// TODO: Add playback policy - https://docs.livepeer.org/developers/tutorials/token-gate-videos-with-lit
 export const getLivepeerUploadUrl = async (
   fileName: string,
   creatorAddress: string,

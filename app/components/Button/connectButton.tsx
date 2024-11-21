@@ -112,7 +112,7 @@ const CRTVConnectButton: React.FC<{ active: any }> = ({ active }) => {
   ) : (
     <Button
       colorScheme="grey"
-      className="bg-grey-500 text-white-500 hover:bg-grey-600 flex items-center space-x-2 rounded-full px-6 py-2 text-lg font-normal transition duration-200 lg:py-3"
+      className="bg-blue-500 text-white-500 hover:bg-blue-600 flex items-center space-x-2 rounded-full px-6 py-2 text-lg font-normal transition duration-200 lg:py-3"
       variant="solid"
       onClick={handleLogout}
     >

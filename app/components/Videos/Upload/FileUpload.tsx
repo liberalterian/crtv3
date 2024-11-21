@@ -10,6 +10,7 @@ import { Progress } from '@app/components/ui/progress';
 import { Button } from '@app/components/ui/button';
 import { AssetMetadata, Subtitles, Chunk } from '../../../lib/sdk/orbisDB/models/AssetMetadata';
 import { useOrbisContext } from '@app/lib/sdk/orbisDB/context';
+import JsGoogleTranslateFree from "@kreisler/js-google-translate-free";
 
 // Add these functions to your component
 
@@ -37,21 +38,25 @@ const translateText = async (text: string, language: string): Promise<string> =>
   try {
     const res = await fetch('/api/livepeer/subtitles/translation', {
       method: 'POST',
+      body: JSON.stringify({
+        text: text,
+        source: 'English',
+        target: language,
+      }),
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        text,
-        source: 'en',
-        target: language
-      })
     });
 
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
+    // if (!res.ok) {
+    //   console.error(res);
+    //   throw new Error(`HTTP error! status: ${res.status}`);
+    // }
 
     const data = await res.json();
+    
+    console.log('Translation response:', data);
+
     return data.response;
   } catch (error) {
     console.error('Translation error:', error);
@@ -60,10 +65,6 @@ const translateText = async (text: string, language: string): Promise<string> =>
 };
 
 async function translateSubtitles(data: { chunks: Chunk[] }): Promise<Subtitles> {
-  // Initialize subtitles with English chunks
-  interface Subtitles {
-    [key: string]: Chunk[];
-  }
 
   const subtitles: Subtitles = {
     'English': data.chunks
@@ -76,13 +77,23 @@ async function translateSubtitles(data: { chunks: Chunk[] }): Promise<Subtitles>
     // Skip translation for English
     if (language === "English") return null;
 
+    console.log('Translating to:', language);
+
     // Perform translations concurrently for each chunk
     const translatedChunks = await Promise.all(
-      data.chunks.map(async (chunk) => ({
-        text: await translateText(chunk.text, language),
-        timestamp: chunk.timestamp
-      }))
+      data.chunks.map(async (chunk, i) => {
+        const to = language === 'Chinese' ? 'zh' : language === 'German' ? 'de' : 'es';
+        const translation = await JsGoogleTranslateFree.translate({ to, text: chunk.text })
+        const arr = {
+          text: translation, // await translateText(chunk.text, language),
+          timestamp: chunk.timestamp
+        };
+        console.log('Translated chunk ' + i + ':', arr);
+        return arr;
+      })
     );
+
+    console.log('Translated chunks:', translatedChunks);
 
     return { [language]: translatedChunks };
   });
@@ -90,6 +101,9 @@ async function translateSubtitles(data: { chunks: Chunk[] }): Promise<Subtitles>
   // Filter out null results and combine translations
   const translations = await Promise.all(translationPromises);
   const languageTranslations = translations.filter(Boolean);
+
+  console.log('translations:', translations);
+  console.log('Language translations:', languageTranslations);
 
   // Merge translations efficiently
   return languageTranslations.filter(
@@ -193,13 +207,110 @@ const FileUpload: React.FC<FileUploadProps> = ({
         headers: { Authorization: `Bearer ${process.env.LIVEPEER_API_KEY}` }
       };
       
-      const res = await fetch('/api/livepeer/subtitles/audio-to-text', options)
+      // const res = await fetch('/api/livepeer/subtitles/audio-to-text', options)
 
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
+      // if (!res.ok) {
+      //   throw new Error(`HTTP error! status: ${res.status}`);
+      // }
       
-      const data = await res.json();
+      // const data = await res.json();
+
+      const data = {
+        chunks: [
+            {
+                text: " Look, you know I love a tiger",
+                timestamp: [
+                    0,
+                    2
+                ]
+            },
+            {
+                text: " She got the Banzai Maya",
+                timestamp: [
+                    2,
+                    4
+                ]
+            },
+            {
+                text: " I'm about to buy that bitch a car",
+                timestamp: [
+                    4,
+                    6
+                ]
+            },
+            {
+                text: " I'm about to send Ardy the wire",
+                timestamp: [
+                    6,
+                    8
+                ]
+            },
+            {
+                text: " You know I love a tiger",
+                timestamp: [
+                    8,
+                    9
+                ]
+            },
+            {
+                text: " I skirt her high ass like a tire",
+                timestamp: [
+                    9,
+                    11
+                ]
+            },
+            {
+                text: " She like Papi on fire",
+                timestamp: [
+                    11,
+                    13
+                ]
+            },
+            {
+                text: " She like Papi on fire",
+                timestamp: [
+                    13,
+                    15
+                ]
+            },
+            {
+                text: " 4'4'' barkin' egg",
+                timestamp: [
+                    15,
+                    16
+                ]
+            },
+            {
+                text: " Louder than the church choir",
+                timestamp: [
+                    16,
+                    18
+                ]
+            },
+            {
+                text: " I do a drill in the suit",
+                timestamp: [
+                    18,
+                    20
+                ]
+            },
+            {
+                text: " Then I change my attire",
+                timestamp: [
+                    20,
+                    21
+                ]
+            },
+            {
+                text: " Look, she throw that ass back in a quick sec",
+                timestamp: [
+                    21,
+                    23
+                ]
+            }
+        ],
+        text: " Look, you know I love a tiger She got the Banzai Maya I'm about to buy that bitch a car I'm about to send Ardy the wire You know I love a tiger I skirt her high ass like a tire She like Papi on fire She like Papi on fire 4'4'' barkin' egg Louder than the church choir I do a drill in the suit Then I change my attire Look, she throw that ass back in a quick sec"
+      };
     
       const subtitles = await translateSubtitles(data);
 
@@ -351,103 +462,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
 export default FileUpload; 
    
-// const data = {
-      //   "chunks": [
-      //       {
-      //           "text": " Look, you know I love a tiger",
-      //           "timestamp": [
-      //               0,
-      //               2
-      //           ]
-      //       },
-      //       {
-      //           "text": " She got the Banzai Maya",
-      //           "timestamp": [
-      //               2,
-      //               4
-      //           ]
-      //       },
-      //       {
-      //           "text": " I'm about to buy that bitch a car",
-      //           "timestamp": [
-      //               4,
-      //               6
-      //           ]
-      //       },
-      //       {
-      //           "text": " I'm about to send Ardy the wire",
-      //           "timestamp": [
-      //               6,
-      //               8
-      //           ]
-      //       },
-      //       {
-      //           "text": " You know I love a tiger",
-      //           "timestamp": [
-      //               8,
-      //               9
-      //           ]
-      //       },
-      //       {
-      //           "text": " I skirt her high ass like a tire",
-      //           "timestamp": [
-      //               9,
-      //               11
-      //           ]
-      //       },
-      //       {
-      //           "text": " She like Papi on fire",
-      //           "timestamp": [
-      //               11,
-      //               13
-      //           ]
-      //       },
-      //       {
-      //           "text": " She like Papi on fire",
-      //           "timestamp": [
-      //               13,
-      //               15
-      //           ]
-      //       },
-      //       {
-      //           "text": " 4'4'' barkin' egg",
-      //           "timestamp": [
-      //               15,
-      //               16
-      //           ]
-      //       },
-      //       {
-      //           "text": " Louder than the church choir",
-      //           "timestamp": [
-      //               16,
-      //               18
-      //           ]
-      //       },
-      //       {
-      //           "text": " I do a drill in the suit",
-      //           "timestamp": [
-      //               18,
-      //               20
-      //           ]
-      //       },
-      //       {
-      //           "text": " Then I change my attire",
-      //           "timestamp": [
-      //               20,
-      //               21
-      //           ]
-      //       },
-      //       {
-      //           "text": " Look, she throw that ass back in a quick sec",
-      //           "timestamp": [
-      //               21,
-      //               23
-      //           ]
-      //       }
-      //   ],
-      //   "text": " Look, you know I love a tiger She got the Banzai Maya I'm about to buy that bitch a car I'm about to send Ardy the wire You know I love a tiger I skirt her high ass like a tire She like Papi on fire She like Papi on fire 4'4'' barkin' egg Louder than the church choir I do a drill in the suit Then I change my attire Look, she throw that ass back in a quick sec"
-      // };
-
       // let subtitles: Subtitles = {};
       
       // const languages = [
