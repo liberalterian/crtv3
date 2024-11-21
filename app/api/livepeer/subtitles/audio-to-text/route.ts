@@ -5,7 +5,6 @@ import { GenAudioToTextResponse } from 'livepeer/models/operations';
 import { SubtitleResponse } from '@app/lib/types';
 
 export async function POST(req: NextRequest) {
-
   try {
     const formData = await req.formData();
     const file = formData.get('audio') as File;

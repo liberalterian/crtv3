@@ -22,11 +22,12 @@ interface PlayerComponentProps {
   src: Src[] | null;
   assetId: string;
   title: string;
+  accessKey?: string;
 };
 
-export const PlayerComponent: React.FC<PlayerComponentProps> = ({ src, assetId, title }) => {
+export const PlayerComponent: React.FC<PlayerComponentProps> = ({ src, assetId, title, accessKey }) => {
   const [assetMetadata, setAssetMetadata] = useState<AssetMetadata | null>(null);
-
+  
   const { getAssetMetadata } = useOrbisContext();
 
   // if (!src) {
@@ -49,7 +50,7 @@ export const PlayerComponent: React.FC<PlayerComponentProps> = ({ src, assetId, 
 
   return (
     <>
-      <Player.Root src={src}>
+      <Player.Root src={src} accessKey={accessKey}>
         <Player.Container className="h-full w-full overflow-hidden bg-gray-950">
           <Player.Video title={title} className="h-full w-full" poster={null} />
 

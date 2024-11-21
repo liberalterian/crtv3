@@ -6,7 +6,7 @@ import { PlayerComponent } from '@app/components/Player/Player';
 import { Src } from '@livepeer/react';
 import { getSrc } from '@livepeer/react/external';
 import {
-  giveLivePeerAsset,
+  getLivePeerAsset,
   getLivePeerPlaybackInfo,
 } from '@app/api/livepeer/livepeerActions';
 import { Asset, PlaybackInfo } from 'livepeer/models/components';
@@ -33,7 +33,7 @@ export default function CreateThumbnail({
   useInterval(
     () => {
       if (livePeerAssetId) {
-        giveLivePeerAsset(livePeerAssetId)
+        getLivePeerAsset(livePeerAssetId)
           .then((data) => {
             console.log(data);
             setLivePeerAssetData(data);
