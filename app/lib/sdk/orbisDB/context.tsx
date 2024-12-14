@@ -6,6 +6,7 @@ import {  OrbisConnectResult, OrbisDB } from '@useorbis/db-sdk';
 // import { Wallet } from 'ethers';
 import createAssetMetadataModel, { AssetMetadata } from './models/AssetMetadata';
 import { download } from 'thirdweb/storage';
+import { VideoTokenMetadata } from './models/VideoTokenMetadata';
 // import { ASSET_METADATA_MODEL_ID, CREATIVE_TV_CONTEXT_ID } from '@app/lib/utils/context';
 
 declare global {
@@ -21,6 +22,7 @@ interface OrbisContextProps {
     replace: (docId: string, newDoc: any) => Promise<void>;
     update: (docId: string, updates: any) => Promise<void>;
     getAssetMetadata: (assetId: string) => Promise<AssetMetadata | null>;
+    getVideoTokenMetadata: (assetId: string, fields?: Array<string | any>) => Promise<VideoTokenMetadata>;
     orbisLogin: (privateKey?: string) => Promise<OrbisConnectResult | null>;
     isConnected: (address: string) => Promise<boolean>;
     getCurrentUser: () => Promise<any>;
@@ -68,17 +70,21 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const assetMetadataModelId: string = process.env.NEXT_PUBLIC_ORBIS_ASSET_METADATA_MODEL_ID as string;
+  const videoTokenMetadataModelId: string = process.env.NEXT_PUBLIC_ORBIS_VIDEO_TOKEN_METADATA_MODEL_ID as string;
   const crtvContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_CONTEXT_ID as string;
   const crtvVideosContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_VIDEO_CONTEXT_ID as string;
-  
+  const crtvVideoTokenMetadataContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_VIDEO_TOKEN_METADATA_CONTEXT_ID as string;
+
   const validateDbOperation = (id: string, value?: any, select: boolean = false) => {
     if (!id) throw new Error('No id provided');
     if (!select) {
       if (!value) throw new Error('No value provided');
     }
     if (!assetMetadataModelId) throw new Error('No assetMetadataModelId provided');
+    if (!videoTokenMetadataModelId) throw new Error('No videoTokenMetadataModelId provided');
     if (!crtvContextId) throw new Error('No crtvContextId provided');
     if (!crtvVideosContextId) throw new Error('No crtvVideosContextId provided');
+    if (!crtvVideoTokenMetadataContextId) throw new Error('No crtvVideoTokenMetadataContextId provided');
     if (!db) throw new Error('No db client found');
   };
   
@@ -163,8 +169,6 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
 
     const selectStatement = db
       .select()
-      // SELECT * FROM "kjzl6hvfrbw6c8ff20kxk0v7j0an1rxjyzs0afesrbcv59fiknxzogtlhxxlr14" WHERE "assetId" = '84168a9c-6020-451a-83d1-7f32fbd352cf';
-      // .raw(`SELECT * FROM "${ASSET_METADATA_MODEL_ID}" WHERE "assetId" = '${assetId}';`)
       .from(assetMetadataModelId)
       .where({
         assetId,
@@ -201,6 +205,34 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
 
     return assetMetadata;
   };
+
+  const getVideoTokenMetadata = async (assetId: string, fields?: Array<string | any>): Promise<VideoTokenMetadata> => {
+    validateDbOperation(assetId, true);
+
+    const selectStatement = db
+      .select(fields && fields)
+      .from(videoTokenMetadataModelId)
+      .where({
+        assetId
+      })
+      // .join()
+      .context(crtvVideoTokenMetadataContextId);
+
+      
+    const [result, error] = await catchError(() => selectStatement.run());
+
+    if (error) {
+      console.log('selectStatement runs', selectStatement.runs);
+      console.error(error);
+      throw error;
+    }
+
+    const { rows } = result;
+
+    const videoTokenMetadata = rows[0] as VideoTokenMetadata;
+
+    return videoTokenMetadata;
+  }
 
   const orbisLogin = async (privateKey?: string): Promise<OrbisConnectResult> => {
     
@@ -256,6 +288,7 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
           replace,
           update,
           getAssetMetadata,
+          getVideoTokenMetadata,
           orbisLogin,
           isConnected,
           getCurrentUser
