@@ -174,7 +174,7 @@ const HookMultiStepForm = () => {
           tokenGateVideo={tokenGateVideo}
           onFileSelect={(file) => {}}
           onFileUploaded={(videoUrl: string) => {}}
-          onSubtitlesSuccess={(subtitlesUri?: string) => {
+          onSubtitlesUploaded={(subtitlesUri?: string) => {
             setSubtitlesUri(subtitlesUri);
           }}
           onPressBack={() =>

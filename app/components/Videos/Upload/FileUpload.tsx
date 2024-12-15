@@ -29,7 +29,7 @@ const copyToClipboard = (text: string) => {
 interface FileUploadProps {
   onFileSelect: (file: File | null) => void;
   onFileUploaded: (fileUrl: string) => void;
-  onSubtitlesSuccess: (subtitlesUri?: string) => void;
+  onSubtitlesUploaded: (subtitlesUri?: string) => void;
   onPressNext?: (livepeerAsset: any) => void;
   onPressBack?: () => void;
   metadata?: any;
@@ -119,7 +119,7 @@ async function translateSubtitles(data: { chunks: Chunk[] }): Promise<Subtitles>
 const FileUpload: React.FC<FileUploadProps> = ({
   onFileSelect,
   onFileUploaded,
-  onSubtitlesSuccess,
+  onSubtitlesUploaded,
   onPressNext,
   onPressBack,
   metadata,
@@ -225,7 +225,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         ]
       });
 
-      onSubtitlesSuccess(ipfsUri);
+      onSubtitlesUploaded(ipfsUri);
     } catch (error: any) {
       console.error('Error processing file:', error);
       if (uploadState !== 'complete') {  
@@ -279,6 +279,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
                     ? 'cursor-not-allowed bg-[#D63A6A]'
                     : 'bg-[#EC407A] hover:bg-[#D63A6A]'
                 } cursor-pointer rounded-lg px-4 py-2 font-semibold text-white`}
+                data-testid='file-input-upload-button'
               >
                 Upload File
               </button>
