@@ -4,9 +4,10 @@ import { catchError } from "@useorbis/db-sdk/util"
 import { OrbisEVMAuth } from "@useorbis/db-sdk/auth";
 import {  OrbisConnectResult, OrbisDB } from '@useorbis/db-sdk';
 // import { Wallet } from 'ethers';
-import createAssetMetadataModel, { AssetMetadata } from './models/AssetMetadata';
+import { v4 as uuidv4 } from 'uuid';
+import { AssetMetadata } from './models/AssetMetadata';
 import { download } from 'thirdweb/storage';
-import { VideoTokenMetadata } from './models/VideoTokenMetadata';
+import { VideoTokenArrayProperty, VideoTokenMetadata, VideoTokenRichProperty, VideoTokenSimpleProperty } from './models/VideoTokenMetadata';
 // import { ASSET_METADATA_MODEL_ID, CREATIVE_TV_CONTEXT_ID } from '@app/lib/utils/context';
 
 declare global {
@@ -21,6 +22,7 @@ interface OrbisContextProps {
     insert: (modelId: string, value: any) => Promise<void>;
     replace: (docId: string, newDoc: any) => Promise<void>;
     update: (docId: string, updates: any) => Promise<void>;
+    insertTokenMetadata: (tokenMetadata: VideoTokenMetadata) => Promise<VideoTokenMetadata>;
     getAssetMetadata: (assetId: string) => Promise<AssetMetadata | null>;
     getVideoTokenMetadata: (assetId: string, fields?: Array<string | any>) => Promise<VideoTokenMetadata>;
     orbisLogin: (privateKey?: string) => Promise<OrbisConnectResult | null>;
@@ -70,10 +72,12 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const assetMetadataModelId: string = process.env.NEXT_PUBLIC_ORBIS_ASSET_METADATA_MODEL_ID as string;
-  const videoTokenMetadataModelId: string = process.env.NEXT_PUBLIC_ORBIS_VIDEO_TOKEN_METADATA_MODEL_ID as string;
+  const tokenMetadataModelId: string = process.env.NEXT_PUBLIC_ORBIS_VIDEO_TOKEN_METADATA_MODEL_ID as string;
+  const videoTokenSimplePropertyModelId = process.env.NEXT_PUBLIC_ORBIS_VIDEO_TOKEN_SIMPLE_PROPERTY_MODEL_ID as string;
   const crtvContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_CONTEXT_ID as string;
   const crtvVideosContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_VIDEO_CONTEXT_ID as string;
   const crtvVideoTokenMetadataContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_VIDEO_TOKEN_METADATA_CONTEXT_ID as string;
+  const crtvVideoTokenMetadataContext = process.env.NEXT_PUBLIC_ORBIS_CRTV_VIDEO_TOKEN_METADATA_CONTEXT_ID as string;
 
   const validateDbOperation = (id: string, value?: any, select: boolean = false) => {
     if (!id) throw new Error('No id provided');
@@ -81,7 +85,7 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
       if (!value) throw new Error('No value provided');
     }
     if (!assetMetadataModelId) throw new Error('No assetMetadataModelId provided');
-    if (!videoTokenMetadataModelId) throw new Error('No videoTokenMetadataModelId provided');
+    if (!tokenMetadataModelId) throw new Error('No tokenMetadataModelId provided');
     if (!crtvContextId) throw new Error('No crtvContextId provided');
     if (!crtvVideosContextId) throw new Error('No crtvVideosContextId provided');
     if (!crtvVideoTokenMetadataContextId) throw new Error('No crtvVideoTokenMetadataContextId provided');
@@ -164,6 +168,74 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
     console.log(updateStatement.runs);
   };
 
+  const insertTokenMetadata = async (tokenMetadata: VideoTokenMetadata, ) => {
+    try {
+      console.log(`insert tokenMetadata -> ${tokenMetadata.tokenId}`);
+  
+      const insertTokenMetadataStatement  = db
+          .insert(tokenMetadataModelId)
+          .value(tokenMetadata)
+          .context(crtvVideoTokenMetadataContext);
+  
+      const [result, error] = await catchError(() => insertTokenMetadataStatement.run());
+  
+      let tokenMetadataResult = result as unknown as VideoTokenMetadata;
+  
+      console.log('insert tokenMetadata result: ', { tokenMetadataResult });
+  
+      if (error) {
+          console.log('insertTokenMetadataStatement runs', insertTokenMetadataStatement.runs);
+          console.error(error);
+          throw error;
+      }
+  
+      let properties: Record<string, VideoTokenSimpleProperty | VideoTokenArrayProperty | VideoTokenRichProperty> = {};
+  
+      if (tokenMetadata.properties) {
+        for (const [key, value] of Object.entries(tokenMetadata.properties)) {
+            console.log(`insert property -> ${key}: ${value} for tokenId ${tokenMetadata.tokenId} `);
+    
+            const property = {
+                // propertyId: uuidv4(),
+                tokenId: tokenMetadata.tokenId,
+                key,
+                value
+            };
+    
+            console.log({ property });
+            
+            const insertPropertyStatement = db
+                .insert(videoTokenSimplePropertyModelId)
+                .value(property)
+                .context(crtvVideoTokenMetadataContext);
+    
+            const [result, error] = await catchError(() => insertPropertyStatement.run());
+    
+            if (error) {
+                console.log('insertPropertyStatement runs', insertPropertyStatement.runs);
+                console.error(error);
+                throw error;
+            }
+    
+            console.log('insert property result: ', { result });
+            
+            Object.assign(properties, { [key]: value } as Record<string, VideoTokenSimpleProperty>);
+    
+            console.log({ properties });
+        }   
+        tokenMetadataResult.properties = {};
+        Object.assign(tokenMetadataResult.properties, properties);
+      }
+  
+      console.log('final result: ', { tokenMetadataResult });
+  
+      return tokenMetadataResult;
+    } catch (error) {
+      console.error(error);
+      throw new Error(`Error creating video token metadata: ${error}`)
+    }
+  };
+
   const getAssetMetadata = async (assetId: string): Promise<AssetMetadata> => {
     validateDbOperation(assetId, true);
 
@@ -211,7 +283,7 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
 
     const selectStatement = db
       .select(fields && fields)
-      .from(videoTokenMetadataModelId)
+      .from(tokenMetadataModelId)
       .where({
         assetId
       })
@@ -229,10 +301,10 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
 
     const { rows } = result;
 
-    const videoTokenMetadata = rows[0] as VideoTokenMetadata;
+    const tokenMetadata = rows[0] as VideoTokenMetadata;
 
-    return videoTokenMetadata;
-  }
+    return tokenMetadata;
+  };
 
   const orbisLogin = async (privateKey?: string): Promise<OrbisConnectResult> => {
     
@@ -288,6 +360,7 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
           replace,
           update,
           getAssetMetadata,
+          insertTokenMetadata,
           getVideoTokenMetadata,
           orbisLogin,
           isConnected,

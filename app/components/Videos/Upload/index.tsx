@@ -5,6 +5,10 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaExclamationTriangle } from 'react-icons/fa';
 
+import { nextTokenIdToMint, updateMetadata } from "thirdweb/extensions/erc1155";
+import { lazyMint } from "thirdweb/extensions/erc1155";
+import { sendTransaction } from "thirdweb";
+
 import { toast } from 'sonner';
 import { useActiveAccount } from 'thirdweb/react';
 import { Asset } from 'livepeer/models/components';
@@ -13,6 +17,7 @@ import {
   StepperFormKeysType,
   StepperFormValues,
 } from '@app/types/hook-stepper';
+import { client } from '@app/lib/sdk/thirdweb/client';
 import { useOrbisContext } from '@app/lib/sdk/orbisDB/context';
 import { hasAccess } from '@app/api/auth/thirdweb/gateCondition';
 import StepperIndicator from '@app/components/Stepper-Indicator';
@@ -22,11 +27,21 @@ import CreateInfo from '@app/components/Videos/Upload/Create-info';
 import CreateThumbnail from '@app/components/Videos/Upload/Create-thumbnail';
 import { Alert, AlertDescription, AlertTitle } from '@app/components/ui/alert';
 import type { TVideoMetaForm } from '@app/components/Videos/Upload/Create-info';
-import { STEPPER_FORM_KEYS } from '@app/lib/utils/context';
+import { STEPPER_FORM_KEYS, VIDEO_TOKEN_ABI, VIDEO_TOKEN_ADDRESS } from '@app/lib/utils/context';
 import {
   AssetMetadata,
   createAssetMetadata,
 } from '@app/lib/sdk/orbisDB/models/AssetMetadata';
+import { VideoTokenMetadata } from '@app/lib/sdk/orbisDB/models/VideoTokenMetadata';
+import { getContract } from 'thirdweb';
+import { base } from 'thirdweb/chains';
+
+const contract = getContract({
+  client,
+  chain: base,
+  address: VIDEO_TOKEN_ADDRESS, 
+  abi: VIDEO_TOKEN_ABI
+});
 
 const HookMultiStepForm = () => {
   const [activeStep, setActiveStep] = useState(1);
@@ -41,7 +56,11 @@ const HookMultiStepForm = () => {
   const [subtitlesUri, setSubtitlesUri] = useState<string>();
   const [thumbnailUri, setThumbnailUri] = useState<string>();
 
-  const { insert, isConnected } = useOrbisContext();
+  const [tokenGateVideo, setTokenGateVideo] = useState<boolean>(false);
+  const [tokenId, setTokenId] = useState<string>('');
+  const [tokenMetadata, setTokenMetadata] = useState<VideoTokenMetadata>();
+
+  const { insert, insertTokenMetadata, isConnected } = useOrbisContext();
 
   const activeAccount = useActiveAccount();
 
@@ -93,9 +112,33 @@ const HookMultiStepForm = () => {
     }
   }, [erroredInputName]);
 
-  const handleCreateInfoSubmit = (data: TVideoMetaForm) => {
+  const handleCreateInfoSubmit = async (data: TVideoMetaForm) => {
     setMetadata(data);
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
+    if (tokenGateVideo) {
+      const id = (await nextTokenIdToMint({ contract })).toString();
+      setTokenId(id);
+
+      const tokenMetadata: VideoTokenMetadata = {
+        tokenId: id,
+        name: data.title,
+        description: data.description,
+        properties: {
+          location: data?.location,
+          category: data?.category,
+          creatorAddress: activeAccount?.address,
+        }
+      }
+
+      const transaction = lazyMint({
+        contract,
+        nfts: [
+          tokenMetadata
+        ],
+      });
+      
+      await sendTransaction({ transaction, account: activeAccount! });
+    }
   }
 
   return (
@@ -117,6 +160,8 @@ const HookMultiStepForm = () => {
         <FileUpload
           newAssetTitle={metadata?.title}
           metadata={metadata}
+          tokenId={tokenId}
+          tokenGateVideo={tokenGateVideo}
           onFileSelect={(file) => {}}
           onFileUploaded={(videoUrl: string) => {}}
           onSubtitlesSuccess={(subtitlesUri?: string) => {
@@ -155,6 +200,28 @@ const HookMultiStepForm = () => {
               process.env.NEXT_PUBLIC_ORBIS_ASSET_METADATA_MODEL_ID as string,
               assetMetadata,
             );
+
+            if (tokenGateVideo) {
+              const tokenMetadata: VideoTokenMetadata = {
+                tokenId: tokenId,
+                name: metadata!.title,
+                description: metadata!.description,
+                image: data.thumbnailUri,
+                properties: {
+                  location: metadata?.location,
+                  category: metadata?.category,
+                  creatorAddress: activeAccount?.address,
+                  assetId: livepeerAsset.id,
+                  playackUrl: livepeerAsset.playbackUrl,
+                  subtitlesUri: subtitlesUri,
+                }
+              }
+              updateMetadata({ 
+                contract, 
+                targetTokenId: BigInt(tokenId), 
+                newMetadata: tokenMetadata 
+              });
+            }
           }}
         />
       </div>

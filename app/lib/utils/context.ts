@@ -1859,6 +1859,11 @@ export const ACCOUNT_FACTORY_ABI = [
   },
 ];
 
+// TODO: add VIDEO_TOKEN_ADDRESS AND VIDEO_TOKEN_ABI
+export const VIDEO_TOKEN_ADDRESS = '0x123...';
+
+export const VIDEO_TOKEN_ABI: any[] = [{}];
+
 export const QUARTERLY_PRICES = [
   {
     name: 'Fan',

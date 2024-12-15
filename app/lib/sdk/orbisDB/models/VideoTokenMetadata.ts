@@ -1,15 +1,14 @@
 import { ModelDefinition } from '@ceramicnetwork/stream-model';
 
 export type VideoTokenMetadata = {
-    assetId: string;
     tokenId: string;
-    contractAddress: string;
-    creatorAddress: string;
     name: string;
     description: string;   
-    image: string;
-    properties?: Record<string, VideoTokenRichProperty | VideoTokenArrayProperty | VideoTokenSimpleProperty>;
-
+    image?: string;
+    properties?: {
+        [s: string]: string | VideoTokenRichProperty | VideoTokenArrayProperty | VideoTokenSimpleProperty | undefined
+    } 
+    // Record<string, VideoTokenRichProperty | VideoTokenArrayProperty | VideoTokenSimpleProperty>;
 }
 
 export type VideoTokenRichProperty = {
@@ -43,7 +42,8 @@ export type VideoTokenArrayPropertyItem = {
 export type VideoTokenSimpleProperty = {
     propertyId: string;
     tokenId: string;
-    [key: string]: string;
+    key: string;
+    value: string;
 }
 
 export const videoTokenMetadataModelDef: ModelDefinition = {
@@ -121,7 +121,7 @@ export const videoTokenRichPropertyModelDef: ModelDefinition = {
   }
 };
 
-export const modelDefinition: ModelDefinition = {
+export const videoTokenCssPropertymodelDef: ModelDefinition = {
     "name": "CRTVVideoTokenCSSProperty",
     "version": "2.0",
     "interface": false,
