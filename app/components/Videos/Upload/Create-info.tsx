@@ -25,13 +25,13 @@ export type TVideoMetaForm = {
   description: string;
   location?: string;
   category?: string;
+  tokenGateVideo: boolean;
 };
 
 const CreateInfo = ({ onPressNext }: TCreateInfoProps) => {
   const {
     handleSubmit,
     formState: { errors, isValid },
-    reset,
     setValue,
     register,
   } = useForm<TVideoMetaForm>({
@@ -41,6 +41,7 @@ const CreateInfo = ({ onPressNext }: TCreateInfoProps) => {
       description: '',
       location: '',
       category: '',
+      tokenGateVideo: false,
     },
   });
 
@@ -116,6 +117,19 @@ const CreateInfo = ({ onPressNext }: TCreateInfoProps) => {
               <SelectItem value="Other">Other</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+      </div>
+      <div className="mt-10 flex w-full flex-col justify-start lg:flex-row">
+        <div className="mb-4 flex w-full flex-col justify-start lg:mb-0 lg:w-2/5">
+          <Label className="text-sm">Token Gate Video?</Label>
+          <Input
+            type="checkbox"
+            className="mt-2 h-12 w-full rounded-md border border-[#444752] focus:outline-none"
+            data-testid="create-info-token-gate-video"
+            {...register('tokenGateVideo', {
+              required: false,
+            })}
+          />
         </div>
       </div>
       <div className="mt-6 flex justify-center">

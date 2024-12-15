@@ -111,11 +111,17 @@ const HookMultiStepForm = () => {
   }, [erroredInputName]);
 
   const handleCreateInfoSubmit = async (data: TVideoMetaForm) => {
+    console.log('handleCreateInfoSubmit(): ', { data });
+
     setMetadata(data);
+    setTokenGateVideo(data.tokenGateVideo);
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
-    if (tokenGateVideo) {
+
+    if (data.tokenGateVideo) {
       const id = (await nextTokenIdToMint({ contract })).toString();
       setTokenId(id);
+
+      console.log({ tokenId: id });
 
       const tokenMetadata: VideoTokenMetadata = {
         tokenId: id,
@@ -128,6 +134,8 @@ const HookMultiStepForm = () => {
         }
       }
 
+      console.log({ tokenMetadata });
+
       const transaction = lazyMint({
         contract,
         nfts: [
@@ -135,7 +143,11 @@ const HookMultiStepForm = () => {
         ],
       });
       
-      await sendTransaction({ transaction, account: activeAccount! });
+      console.log({ transaction });
+
+      const result = await sendTransaction({ transaction, account: activeAccount! });
+
+      console.log({ result });
     }
   }
 
@@ -179,6 +191,8 @@ const HookMultiStepForm = () => {
           livePeerAssetId={livepeerAsset?.id}
           thumbnailUri={thumbnailUri}
           onComplete={async (data) => {
+            console.log('onComplete() -> ', { data });
+            
             setThumbnailUri(data.thumbnailUri);
             
             if (!livepeerAsset || !metadata) {
@@ -199,6 +213,8 @@ const HookMultiStepForm = () => {
               assetMetadata,
             );
 
+            console.log({ tokenGateVideo });
+
             if (tokenGateVideo) {
               const tokenMetadata: VideoTokenMetadata = {
                 tokenId: tokenId,
@@ -214,11 +230,14 @@ const HookMultiStepForm = () => {
                   subtitlesUri: subtitlesUri || '' ,
                 }
               }
-              updateMetadata({ 
+
+              const updateResult = updateMetadata({ 
                 contract, 
                 targetTokenId: BigInt(tokenId), 
                 newMetadata: tokenMetadata 
               });
+
+              console.log({ tokenMetadata, updateResult });
             }
           }}
         />

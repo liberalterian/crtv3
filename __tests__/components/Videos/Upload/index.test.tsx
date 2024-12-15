@@ -180,7 +180,7 @@ describe('HookMultiStepForm', () => {
       });
     });
 
-    it('should not allow submissions when not all required fields are provided', async () => {
+    it('should not allow submissions when required fields are not provided', async () => {
       const { getByTestId } = render(<CreateInfo onPressNext={onPressNextMock} />);
 
       const title = getByTestId('create-info-title');
@@ -203,24 +203,27 @@ describe('HookMultiStepForm', () => {
       });
     });
 
-    it('should accept optional fields', async () => {
+    it('should accept all optional fields', async () => {
       const { getByTestId } = render(<CreateInfo onPressNext={onPressNextMock} />);
 
       const title = getByTestId('create-info-title');
       const description = getByTestId('create-info-description');
       const location = getByTestId('create-info-location');
       const category = getByTestId('create-info-category');
+      const tokenGateVideo = getByTestId('create-info-token-gate-video') as HTMLInputElement;
       const next = getByTestId('create-info-next') as HTMLButtonElement;
 
       fireEvent.change(title, { target: { value: 'Test Title' } });
       fireEvent.change(description, { target: { value: 'Test Description' } });
       fireEvent.change(location, { target: { value: 'Test Location' } });
       fireEvent.change(category, { target: { value: 'Test Category' } });
+      await userEvent.click(tokenGateVideo);
 
       expect(title).toHaveValue('Test Title');
       expect(description).toHaveValue('Test Description');
       expect(location).toHaveValue('Test Location');
       expect(category).toHaveValue('Test Category');
+      expect(tokenGateVideo).toBeChecked();
 
       await waitFor(() => {
         expect((next).disabled).toBe(false);
@@ -234,6 +237,9 @@ describe('HookMultiStepForm', () => {
     
       fireEvent.change(getByTestId('create-info-title'), { target: { value: 'Test Title' } });
       fireEvent.change(getByTestId('create-info-description'), { target: { value: 'Test Description' } });
+      fireEvent.change(getByTestId('create-info-location'), { target: { value: 'Test Location' } });
+      // fireEvent.change(getByTestId('create-info-category'), { target: { value: 'Test Category' } });
+      await userEvent.click(getByTestId('create-info-token-gate-video'));
       
       await userEvent.click(getByTestId('create-info-next'));
     
@@ -241,8 +247,10 @@ describe('HookMultiStepForm', () => {
         expect(onPressNextMock).toHaveBeenCalledWith({
           title: 'Test Title',
           description: 'Test Description',
-          location: '',
+          location: 'Test Location',
           category: '',
+          // category: 'Test Category',
+          tokenGateVideo: true,
         });
       });
     });

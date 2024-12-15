@@ -4,6 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'auto';
 
+export const config = {
+  api: {
+    bodyParser: false
+  }
+};
+
 export async function POST(req: NextRequest) {
   // Setup request timeout using AbortController
   const controller = new AbortController();
@@ -74,7 +80,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        response: data.textResponse,
+        response: data,
       },
       {
         status: 200,
