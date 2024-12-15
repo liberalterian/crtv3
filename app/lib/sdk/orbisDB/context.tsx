@@ -3,12 +3,8 @@ import { client } from '@app/lib/sdk/thirdweb/client';
 import { catchError } from "@useorbis/db-sdk/util"
 import { OrbisEVMAuth } from "@useorbis/db-sdk/auth";
 import {  OrbisConnectResult, OrbisDB } from '@useorbis/db-sdk';
-// import { Wallet } from 'ethers';
-import { v4 as uuidv4 } from 'uuid';
 import { AssetMetadata } from './models/AssetMetadata';
 import { download } from 'thirdweb/storage';
-import { VideoTokenArrayProperty, VideoTokenMetadata, VideoTokenRichProperty, VideoTokenSimpleProperty } from './models/VideoTokenMetadata';
-// import { ASSET_METADATA_MODEL_ID, CREATIVE_TV_CONTEXT_ID } from '@app/lib/utils/context';
 
 declare global {
   interface Window {
@@ -22,9 +18,7 @@ interface OrbisContextProps {
     insert: (modelId: string, value: any) => Promise<void>;
     replace: (docId: string, newDoc: any) => Promise<void>;
     update: (docId: string, updates: any) => Promise<void>;
-    insertTokenMetadata: (tokenMetadata: VideoTokenMetadata) => Promise<VideoTokenMetadata>;
     getAssetMetadata: (assetId: string) => Promise<AssetMetadata | null>;
-    getVideoTokenMetadata: (assetId: string, fields?: Array<string | any>) => Promise<VideoTokenMetadata>;
     orbisLogin: (privateKey?: string) => Promise<OrbisConnectResult | null>;
     isConnected: (address: string) => Promise<boolean>;
     getCurrentUser: () => Promise<any>;
@@ -168,74 +162,6 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
     console.log(updateStatement.runs);
   };
 
-  const insertTokenMetadata = async (tokenMetadata: VideoTokenMetadata, ) => {
-    try {
-      console.log(`insert tokenMetadata -> ${tokenMetadata.tokenId}`);
-  
-      const insertTokenMetadataStatement  = db
-          .insert(tokenMetadataModelId)
-          .value(tokenMetadata)
-          .context(crtvVideoTokenMetadataContext);
-  
-      const [result, error] = await catchError(() => insertTokenMetadataStatement.run());
-  
-      let tokenMetadataResult = result as unknown as VideoTokenMetadata;
-  
-      console.log('insert tokenMetadata result: ', { tokenMetadataResult });
-  
-      if (error) {
-          console.log('insertTokenMetadataStatement runs', insertTokenMetadataStatement.runs);
-          console.error(error);
-          throw error;
-      }
-  
-      let properties: Record<string, VideoTokenSimpleProperty | VideoTokenArrayProperty | VideoTokenRichProperty> = {};
-  
-      if (tokenMetadata.properties) {
-        for (const [key, value] of Object.entries(tokenMetadata.properties)) {
-            console.log(`insert property -> ${key}: ${value} for tokenId ${tokenMetadata.tokenId} `);
-    
-            const property = {
-                // propertyId: uuidv4(),
-                tokenId: tokenMetadata.tokenId,
-                key,
-                value
-            };
-    
-            console.log({ property });
-            
-            const insertPropertyStatement = db
-                .insert(videoTokenSimplePropertyModelId)
-                .value(property)
-                .context(crtvVideoTokenMetadataContext);
-    
-            const [result, error] = await catchError(() => insertPropertyStatement.run());
-    
-            if (error) {
-                console.log('insertPropertyStatement runs', insertPropertyStatement.runs);
-                console.error(error);
-                throw error;
-            }
-    
-            console.log('insert property result: ', { result });
-            
-            Object.assign(properties, { [key]: value } as Record<string, VideoTokenSimpleProperty>);
-    
-            console.log({ properties });
-        }   
-        tokenMetadataResult.properties = {};
-        Object.assign(tokenMetadataResult.properties, properties);
-      }
-  
-      console.log('final result: ', { tokenMetadataResult });
-  
-      return tokenMetadataResult;
-    } catch (error) {
-      console.error(error);
-      throw new Error(`Error creating video token metadata: ${error}`)
-    }
-  };
-
   const getAssetMetadata = async (assetId: string): Promise<AssetMetadata> => {
     validateDbOperation(assetId, true);
 
@@ -276,34 +202,6 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return assetMetadata;
-  };
-
-  const getVideoTokenMetadata = async (assetId: string, fields?: Array<string | any>): Promise<VideoTokenMetadata> => {
-    validateDbOperation(assetId, true);
-
-    const selectStatement = db
-      .select(fields && fields)
-      .from(tokenMetadataModelId)
-      .where({
-        assetId
-      })
-      // .join()
-      .context(crtvVideoTokenMetadataContextId);
-
-      
-    const [result, error] = await catchError(() => selectStatement.run());
-
-    if (error) {
-      console.log('selectStatement runs', selectStatement.runs);
-      console.error(error);
-      throw error;
-    }
-
-    const { rows } = result;
-
-    const tokenMetadata = rows[0] as VideoTokenMetadata;
-
-    return tokenMetadata;
   };
 
   const orbisLogin = async (privateKey?: string): Promise<OrbisConnectResult> => {
@@ -360,8 +258,6 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
           replace,
           update,
           getAssetMetadata,
-          insertTokenMetadata,
-          getVideoTokenMetadata,
           orbisLogin,
           isConnected,
           getCurrentUser

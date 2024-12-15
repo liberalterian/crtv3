@@ -14,7 +14,6 @@ import { useActiveAccount } from 'thirdweb/react';
 import { Asset } from 'livepeer/models/components';
 
 import {
-  StepperFormKeysType,
   StepperFormValues,
 } from '@app/types/hook-stepper';
 import { client } from '@app/lib/sdk/thirdweb/client';
@@ -27,7 +26,7 @@ import CreateInfo from '@app/components/Videos/Upload/Create-info';
 import CreateThumbnail from '@app/components/Videos/Upload/Create-thumbnail';
 import { Alert, AlertDescription, AlertTitle } from '@app/components/ui/alert';
 import type { TVideoMetaForm } from '@app/components/Videos/Upload/Create-info';
-import { STEPPER_FORM_KEYS, VIDEO_TOKEN_ABI, VIDEO_TOKEN_ADDRESS } from '@app/lib/utils/context';
+import { VIDEO_TOKEN_ABI, VIDEO_TOKEN_ADDRESS } from '@app/lib/utils/context';
 import {
   AssetMetadata,
   createAssetMetadata,
@@ -58,9 +57,8 @@ const HookMultiStepForm = () => {
 
   const [tokenGateVideo, setTokenGateVideo] = useState<boolean>(false);
   const [tokenId, setTokenId] = useState<string>('');
-  const [tokenMetadata, setTokenMetadata] = useState<VideoTokenMetadata>();
 
-  const { insert, insertTokenMetadata, isConnected } = useOrbisContext();
+  const { insert, isConnected } = useOrbisContext();
 
   const activeAccount = useActiveAccount();
 
@@ -124,9 +122,9 @@ const HookMultiStepForm = () => {
         name: data.title,
         description: data.description,
         properties: {
-          location: data?.location,
-          category: data?.category,
-          creatorAddress: activeAccount?.address,
+          location: data?.location || '',
+          category: data?.category || '',
+          creatorAddress: activeAccount?.address!,
         }
       }
 

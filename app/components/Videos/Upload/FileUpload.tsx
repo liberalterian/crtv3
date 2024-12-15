@@ -13,6 +13,7 @@ import JsGoogleTranslateFree from "@kreisler/js-google-translate-free";
 import { getLivepeerAudioToText } from '@app/api/livepeer/audioToText';
 import { upload } from 'thirdweb/storage';
 import { client } from '@app/lib/sdk/thirdweb/client';
+import { VIDEO_TOKEN_ADDRESS } from '@app/lib/utils/context';
 
 const truncateUri = (uri: string): string => {
   if (uri.length <= 30) return uri;
@@ -33,6 +34,8 @@ interface FileUploadProps {
   onPressBack?: () => void;
   metadata?: any;
   newAssetTitle?: string;
+  tokenId?: string;
+  tokenGateVideo?: boolean;
 }
 
 const translateText = async (text: string, language: string): Promise<string> => {
@@ -121,6 +124,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
   onPressBack,
   metadata,
   newAssetTitle,
+  tokenId,
+  tokenGateVideo
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
@@ -159,6 +164,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
       const uploadRequestResult = await getLivepeerUploadUrl(
         newAssetTitle || selectedFile.name || 'new file name',
         activeAccount?.address || 'anonymous',
+        tokenId,
+        VIDEO_TOKEN_ADDRESS,
+        tokenGateVideo
       );
 
       setLivepeerAsset(uploadRequestResult?.asset);
