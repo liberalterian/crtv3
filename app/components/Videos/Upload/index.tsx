@@ -206,12 +206,12 @@ const HookMultiStepForm = () => {
                 description: metadata!.description,
                 image: data.thumbnailUri,
                 properties: {
-                  location: metadata?.location,
-                  category: metadata?.category,
-                  creatorAddress: activeAccount?.address,
+                  location: metadata?.location || '',
+                  category: metadata?.category || '',
+                  creatorAddress: activeAccount?.address!,
                   assetId: livepeerAsset.id,
-                  playackUrl: livepeerAsset.playbackUrl,
-                  subtitlesUri: subtitlesUri,
+                  playackUrl: livepeerAsset.playbackUrl || '',
+                  subtitlesUri: subtitlesUri || '' ,
                 }
               }
               updateMetadata({ 
