@@ -66,12 +66,8 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const assetMetadataModelId: string = process.env.NEXT_PUBLIC_ORBIS_ASSET_METADATA_MODEL_ID as string;
-  const tokenMetadataModelId: string = process.env.NEXT_PUBLIC_ORBIS_VIDEO_TOKEN_METADATA_MODEL_ID as string;
-  const videoTokenSimplePropertyModelId = process.env.NEXT_PUBLIC_ORBIS_VIDEO_TOKEN_SIMPLE_PROPERTY_MODEL_ID as string;
   const crtvContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_CONTEXT_ID as string;
   const crtvVideosContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_VIDEO_CONTEXT_ID as string;
-  const crtvVideoTokenMetadataContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_VIDEO_TOKEN_METADATA_CONTEXT_ID as string;
-  const crtvVideoTokenMetadataContext = process.env.NEXT_PUBLIC_ORBIS_CRTV_VIDEO_TOKEN_METADATA_CONTEXT_ID as string;
 
   const validateDbOperation = (id: string, value?: any, select: boolean = false) => {
     if (!id) throw new Error('No id provided');
@@ -79,10 +75,8 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
       if (!value) throw new Error('No value provided');
     }
     if (!assetMetadataModelId) throw new Error('No assetMetadataModelId provided');
-    if (!tokenMetadataModelId) throw new Error('No tokenMetadataModelId provided');
     if (!crtvContextId) throw new Error('No crtvContextId provided');
     if (!crtvVideosContextId) throw new Error('No crtvVideosContextId provided');
-    if (!crtvVideoTokenMetadataContextId) throw new Error('No crtvVideoTokenMetadataContextId provided');
     if (!db) throw new Error('No db client found');
   };
   
