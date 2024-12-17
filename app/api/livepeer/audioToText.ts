@@ -9,10 +9,10 @@ type AudioToTextParams = {
 export const getLivepeerAudioToText = async (
   params: AudioToTextParams,
 ) => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
     try {
         const file = params.formData.get('audio') as File;
+
+        console.log({ file });
 
         if (!file) throw new Error('No file uploaded');
 
@@ -29,36 +29,45 @@ export const getLivepeerAudioToText = async (
                 'Authorization': `Bearer ${process.env.LIVEPEER_FULL_API_KEY}`,
                 'Accept': 'application/json'
             },
-            signal: controller.signal
         };
 
-        const result = await fetch(`https://livepeer.studio/api/beta/generate/audio-to-text`, options);
+        const formDatas = params.formData.entries();
 
-        clearTimeout(timeout);
+        for (const [key, value] of formDatas) {
+            console.log({ formData: { key, value }});
+        }
+        
+        console.log({ options });
 
-        if (!result.ok) {
+        const res = await fetch(`https://livepeer.studio/api/beta/generate/audio-to-text`, options);
+
+        console.log({ res });
+
+        if (!res.ok) {
             console.error('Livepeer API Error:', {
-                status: result.status,
-                statusText: result.statusText,
+                status: res.status,
+                statusText: res.statusText,
             });
-            throw new Error(`API request failed: ${result.status} ${result.statusText}`);
+            throw new Error(`API request failed: ${res.status} ${res.statusText}`);
         }
 
-        const contentType = result.headers.get('content-type');
+        const contentType = res.headers.get('content-type');
+
+        console.log({ contentType });
+
         if (!contentType || !contentType.includes('application/json')) {
-            const text = await result.text();
-            console.error('Unexpected response type:', contentType, text);
+            const text = await res.text();
+            console.error('Unexpected response type:', contentType, text || res.statusText);
             throw new Error('API returned non-JSON response');
         }
 
-        const data = await result.json();
+        const data = await res.json();
 
         console.log({ audioToTextResponse: data });
 
         return data;
     } catch (error: any) {
-        clearTimeout(timeout);
         console.error('Error generating text from audio:', error);
-        throw new Error(error.message || 'Failed to generate text from audio');
+        throw new Error(error || 'Failed to generate text from audio');
     }
 };

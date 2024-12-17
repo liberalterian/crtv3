@@ -10,6 +10,9 @@ export type AssetMetadata = {
   description: string;
   location?: string;
   category?: string;
+  tokenGated?: boolean;
+  tokenId?: string;
+  tokenContractAddress?: string;
   thumbnailUri?: string;
   subtitlesUri?: string;
   subtitles?: Subtitles;
@@ -50,44 +53,53 @@ export const createAssetMetadata = (
 };
 
 export const AssetMetadataDef: ModelDefinition = {
-  name: 'CRTVAssetMetadata',
-  version: '2.0',
-  interface: false,
-  immutableFields: [],
-  implements: [],
-  accountRelation: {
-    type: 'list',
+  "name": 'CRTVAssetMetadata',
+  "version": '2.0',
+  "interface": false,
+  "immutableFields": [],
+  "implements": [],
+  "accountRelation": {
+    "type": 'list',
   },
-  schema: {
-    type: 'object',
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    properties: {
-      assetId: {
-        type: 'string',
+  "schema": {
+    "type": 'object',
+    "$schema": 'https://json-schema.org/draft/2020-12/schema',
+    "properties": {
+      "assetId": {
+        "type": 'string',
       },
-      playbackId: {
-        type: 'string',
+      "playbackId": {
+        "type": 'string',
       },
-      title: {
-        type: 'string',
+      "title": {
+        "type": 'string',
       },
-      description: {
-        type: 'string',
+      "description": {
+        "type": 'string',
       },
-      location: {
-        type: 'string',
+      "location": {
+        "type": 'string',
       },
-      category: {
-        type: 'string',
+      "category": {
+        "type": 'string',
       },
-      thumbnailUri: {
-        type: 'string',
+      "tokenGated": {
+        "type": 'boolean',
       },
-      subtitlesUri: {
-        type: 'string',
+      "tokeId": {
+        "type": 'string',
+      },
+      "tokenContractAddress": {
+        "type": 'string',
+      },
+      "thumbnailUri": {
+        "type": 'string',
+      },
+      "subtitlesUri": {
+        "type": 'string',
       },
     },
-    additionalProperties: false,
+    "additionalProperties": false,
   },
 };
 
