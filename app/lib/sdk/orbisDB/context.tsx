@@ -18,6 +18,7 @@ interface OrbisContextProps {
     insert: (modelId: string, value: any) => Promise<void>;
     replace: (docId: string, newDoc: any) => Promise<void>;
     update: (docId: string, updates: any) => Promise<void>;
+    select: (modelId: string, where?: any, context?: string) => Promise<any>;
     getAssetMetadata: (assetId: string) => Promise<AssetMetadata | null>;
     orbisLogin: (privateKey?: string) => Promise<OrbisConnectResult | null>;
     isConnected: (address: string) => Promise<boolean>;
@@ -30,6 +31,7 @@ const OrbisContext = createContext<OrbisContextProps | undefined> ({
     insert: async () => {},
     replace: async () => {},
     update: async () => {},
+    select: async () => {},
     getAssetMetadata: async () => {},
     orbisLogin: async () => {},
     isConnected: async () => false,
@@ -66,27 +68,29 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const assetMetadataModelId: string = process.env.NEXT_PUBLIC_ORBIS_ASSET_METADATA_MODEL_ID as string;
+  const creatorProfileModelId: string = process.env.NEXT_PUBLIC_ORBIS_CREATOR_PROFILE_MODEL_ID as string;
   const crtvContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_CONTEXT_ID as string;
-  const crtvVideosContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_VIDEO_CONTEXT_ID as string;
-
+  const creatorProfileContextId: string = process.env.NEXT_PUBLIC_ORBIS_CREATOR_PROFILE_ID as string;
+  
   const validateDbOperation = (id: string, value?: any, select: boolean = false) => {
     if (!id) throw new Error('No id provided');
     if (!select) {
       if (!value) throw new Error('No value provided');
     }
     if (!assetMetadataModelId) throw new Error('No assetMetadataModelId provided');
+    if (!creatorProfileModelId) throw new Error('No creatorProfileModelId provided');
     if (!crtvContextId) throw new Error('No crtvContextId provided');
-    if (!crtvVideosContextId) throw new Error('No crtvVideosContextId provided');
+    if (!creatorProfileContextId) throw new Error('No creatorProfileContextId provided');
     if (!db) throw new Error('No db client found');
   };
   
-  const insert = async (modelId: string, value: any): Promise<void> => {
+  const insert = async (modelId: string, value: any, context?: string): Promise<void> => {
     validateDbOperation(modelId, value);
 
     const insertStatement: any = db
       .insert(modelId)
       .value(value)
-      .context(crtvVideosContextId);
+      .context(!context ? crtvContextId : context);
 
     const validation = await insertStatement.validate();
 
@@ -156,6 +160,32 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
     console.log(updateStatement.runs);
   };
 
+  const select = async (modelId: string, where?: any, context?: string): Promise<any> => {
+    validateDbOperation(modelId, true);
+
+    const selectStatement = db
+    .select()
+    .from(modelId)
+    .where(where)
+    .context(!context ? crtvContextId : context);
+
+    const [result, error] = await catchError(() => selectStatement.run());
+
+    if (error) {
+      console.log('selectStatement runs', selectStatement.runs);
+      console.error(error);
+      throw error;
+    }
+
+    const { rows } = result;
+
+    const value = rows[0];
+
+    console.log({ value });
+
+    return value;
+  }
+
   const getAssetMetadata = async (assetId: string): Promise<AssetMetadata> => {
     validateDbOperation(assetId, true);
 
@@ -165,7 +195,7 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
       .where({
         assetId,
       })
-      .context(crtvVideosContextId);
+      .context(crtvContextId);
 
     const [result, error] = await catchError(() => selectStatement.run());
 
@@ -251,6 +281,7 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
           insert,
           replace,
           update,
+          select,
           getAssetMetadata,
           orbisLogin,
           isConnected,
