@@ -206,6 +206,9 @@ const HookMultiStepForm = () => {
               metadata,
               data.thumbnailUri,
               subtitlesUri,
+              tokenGateVideo ? tokenGateVideo : undefined,
+              tokenId ? tokenId : undefined,
+              tokenGateVideo ? VIDEO_TOKEN_ADDRESS : undefined
             );
             
             await insert(

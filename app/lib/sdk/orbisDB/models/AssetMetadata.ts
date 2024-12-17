@@ -29,6 +29,9 @@ export const createAssetMetadata = (
   metadata: TVideoMetaForm,
   thumbnailUri?: string,
   subtitlesUri?: string,
+  tokenGated?: boolean,
+  tokenId?: string,
+  tokenContractAddress?: string,
 ): AssetMetadata => {
   if (
     !livepeerAsset.id ||
@@ -45,6 +48,9 @@ export const createAssetMetadata = (
     title: metadata.title,
     description: metadata.description,
     ...(metadata.location && { location: metadata.location }),
+    ...(tokenGated && { tokenGated }),
+    ...(tokenId && { tokenId }),
+    ...(tokenContractAddress && { tokenContractAddress }),
     ...(metadata.category && { category: metadata.category }),
     ...(thumbnailUri && { thumbnailUri }),
     ...(subtitlesUri && { subtitlesUri }),
