@@ -1,10 +1,12 @@
 import { ModelDefinition } from '@ceramicnetwork/stream-model';
 import { Asset } from 'livepeer/models/components';
 import { TVideoMetaForm } from '@app/components/Videos/Upload/Create-info';
+import { string } from 'zod';
 
 export type AssetMetadata = {
   assetId?: string;
   playbackId?: string;
+  creatorAddress: string;
   title: string;
   description: string;
   location?: string;
@@ -26,6 +28,7 @@ export type Chunk = {
 
 export const createAssetMetadata = (
   livepeerAsset: Asset,
+  creatorAddress: string,
   metadata: TVideoMetaForm,
   thumbnailUri?: string,
   subtitlesUri?: string,
@@ -36,6 +39,7 @@ export const createAssetMetadata = (
   if (
     !livepeerAsset.id ||
     !livepeerAsset.playbackId ||
+    !creatorAddress ||
     !metadata.title ||
     !metadata.description
   ) {
@@ -45,6 +49,7 @@ export const createAssetMetadata = (
   return {
     assetId: livepeerAsset.id,
     playbackId: livepeerAsset.playbackId,
+    creatorAddress: creatorAddress,
     title: metadata.title,
     description: metadata.description,
     ...(metadata.location && { location: metadata.location }),

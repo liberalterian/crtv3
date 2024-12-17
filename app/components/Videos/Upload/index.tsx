@@ -203,6 +203,7 @@ const HookMultiStepForm = () => {
             
             const assetMetadata: AssetMetadata = createAssetMetadata(
               livepeerAsset,
+              activeAccount?.address!,
               metadata,
               data.thumbnailUri,
               subtitlesUri,
