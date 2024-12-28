@@ -13,6 +13,7 @@ export type AssetMetadata = {
   category?: string;
   tokenGated?: boolean;
   tokenId?: string;
+  tokenPrice?: number;
   tokenContractAddress?: string;
   thumbnailUri?: string;
   subtitlesUri?: string;

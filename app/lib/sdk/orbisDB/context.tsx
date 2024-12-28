@@ -5,6 +5,7 @@ import { OrbisEVMAuth } from "@useorbis/db-sdk/auth";
 import {  OrbisConnectResult, OrbisDB } from '@useorbis/db-sdk';
 import { AssetMetadata } from './models/AssetMetadata';
 import { download } from 'thirdweb/storage';
+import { CreatorMeToken, CreatorProfile } from './models/CreatorProfile';
 
 declare global {
   interface Window {
@@ -20,6 +21,7 @@ interface OrbisContextProps {
     update: (docId: string, updates: any) => Promise<void>;
     select: (modelId: string, where?: any, context?: string) => Promise<any>;
     getAssetMetadata: (assetId: string) => Promise<AssetMetadata | null>;
+    getCreatorProfile: (address: string) => Promise<CreatorProfile | null>;
     orbisLogin: (privateKey?: string) => Promise<OrbisConnectResult | null>;
     isConnected: (address: string) => Promise<boolean>;
     getCurrentUser: () => Promise<any>;
@@ -33,6 +35,7 @@ const OrbisContext = createContext<OrbisContextProps | undefined> ({
     update: async () => {},
     select: async () => {},
     getAssetMetadata: async () => {},
+    getCreatorProfile: async () => {},
     orbisLogin: async () => {},
     isConnected: async () => false,
     getCurrentUser: async () => {}
@@ -69,6 +72,7 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
 
   const assetMetadataModelId: string = process.env.NEXT_PUBLIC_ORBIS_ASSET_METADATA_MODEL_ID as string;
   const creatorProfileModelId: string = process.env.NEXT_PUBLIC_ORBIS_CREATOR_PROFILE_MODEL_ID as string;
+  const creatorMeTokenModelId: string = process.env.NEXT_PUBLIC_ORBIS_CREATOR_ME_TOKEN_MODEL_ID as string;
   const crtvContextId: string = process.env.NEXT_PUBLIC_ORBIS_CRTV_CONTEXT_ID as string;
   const creatorProfileContextId: string = process.env.NEXT_PUBLIC_ORBIS_CREATOR_PROFILE_ID as string;
   
@@ -79,6 +83,7 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
     }
     if (!assetMetadataModelId) throw new Error('No assetMetadataModelId provided');
     if (!creatorProfileModelId) throw new Error('No creatorProfileModelId provided');
+    if (!creatorMeTokenModelId) throw new Error('No creatorProfileModelId provided');
     if (!crtvContextId) throw new Error('No crtvContextId provided');
     if (!creatorProfileContextId) throw new Error('No creatorProfileContextId provided');
     if (!db) throw new Error('No db client found');
@@ -164,10 +169,10 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
     validateDbOperation(modelId, true);
 
     const selectStatement = db
-    .select()
-    .from(modelId)
-    .where(where)
-    .context(!context ? crtvContextId : context);
+      .select()
+      .from(modelId)
+      .where(where)
+      .context(!context ? crtvContextId : context);
 
     const [result, error] = await catchError(() => selectStatement.run());
 
@@ -228,6 +233,46 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
     return assetMetadata;
   };
 
+  const getCreatorProfile = async (address: string): Promise<CreatorProfile> => {
+    validateDbOperation(address, true);
+
+    const profileSelectStatement = db
+      .select()
+      .from(creatorProfileModelId)
+      .where({ address })
+      .context(crtvContextId);
+
+    const [result, error] = await catchError(() => profileSelectStatement.run());
+
+    if (error) {
+      console.log('profileSelectStatement runs', profileSelectStatement.runs);
+      console.error(error);
+      throw error;
+    }
+
+    const meTokenSelectStatement = db
+      .select()
+      .from(creatorMeTokenModelId)
+      .where({ creatorAddress: address })
+      .context(crtvContextId);
+
+    const [meTokenResult, meTokenError] = await catchError(() => meTokenSelectStatement.run());
+
+    if (meTokenError) {
+      console.log('meTokenSelectStatement runs', meTokenSelectStatement.runs);
+      console.error(meTokenError);
+      throw meTokenError;
+    }  
+
+    const creatorProfile: CreatorProfile = {
+      address,
+      ...result.rows[0],
+      meToken: meTokenResult?.rows[0] as CreatorMeToken
+    };
+
+    return creatorProfile;
+  }
+
   const orbisLogin = async (privateKey?: string): Promise<OrbisConnectResult> => {
     
     let provider; 
@@ -283,6 +328,7 @@ export const OrbisProvider = ({ children }: { children: ReactNode }) => {
           update,
           select,
           getAssetMetadata,
+          getCreatorProfile,
           orbisLogin,
           isConnected,
           getCurrentUser

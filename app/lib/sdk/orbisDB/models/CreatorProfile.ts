@@ -8,6 +8,14 @@ export type CreatorProfile = {
     email?: string;
     bio?: string;
     avatarUri?: string;
+    meToken?: CreatorMeToken
+}
+
+export type CreatorMeToken = {
+    name: string;
+    symbol: string;
+    contractAddress: string;
+    creatorAddress?: string;
 }
 
 export const CRTVCreatorProfileModelDef: ModelDefinition = {

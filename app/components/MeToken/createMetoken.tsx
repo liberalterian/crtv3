@@ -22,6 +22,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { ErrorBoundary } from 'react-error-boundary';
 import type { ErrorInfo } from 'react';
 import { SubscribeToMetoken } from './subscribeMetoken';
+import { useOrbisContext } from '@app/lib/sdk/orbisDB/context';
 
 interface CreateMetokenFormData {
   name: string;
@@ -117,6 +118,8 @@ export default function CreateMetoken() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const address = '0xba5502db2aC2cBff189965e991C07109B14eB3f5';
 
+  const { insert } = useOrbisContext();
+
   const form = useForm<CreateMetokenFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -156,6 +159,23 @@ export default function CreateMetoken() {
       if (!formValues.address) {
         toast.error('Diamond address is required');
         return;
+      }
+
+      try {
+        // Call the createMetoken function with form values
+        const modelId = process.env.NEXT_PUBLIC_ORBIS_CREATOR_ME_TOKEN_MODEL_ID as string;
+        const result = await insert(modelId, {
+          name: formValues.name,
+          symbol: formValues.symbol,
+          contractAddress: formValues.address,
+          creatorAddress: activeAccount?.address
+        });
+        console.log({ result });
+      } catch (err) {
+        toast.error('Error generating MeToken');
+        console.error(err)
+      } finally {
+        setIsLoading(false);
       }
 
       try {

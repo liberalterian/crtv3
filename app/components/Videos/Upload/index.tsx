@@ -235,13 +235,17 @@ const HookMultiStepForm = () => {
                 }
               }
 
-              const updateResult = updateMetadata({ 
+              const transaction = updateMetadata({ 
                 contract, 
                 targetTokenId: BigInt(tokenId), 
                 newMetadata: tokenMetadata 
               });
 
-              console.log({ tokenMetadata, updateResult });
+              console.log({ tokenMetadata, transaction });
+
+              const result = await sendTransaction({ transaction, account: activeAccount! });
+
+              console.log({ result });
             }
           }}
         />

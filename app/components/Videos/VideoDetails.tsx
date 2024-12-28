@@ -11,7 +11,10 @@ import { toast } from 'sonner';
 import { Src } from '@livepeer/react';
 import * as Popover from '@radix-ui/react-popover';
 
-import { useActiveAccount } from 'thirdweb/react';
+import { base} from 'thirdweb/chains';
+import { getContract, prepareContractCall, sendTransaction, toWei } from 'thirdweb';
+import { ClaimButton, getDefaultToken, PayEmbed, TransactionButton, useActiveAccount } from 'thirdweb/react';
+import { balanceOf as balanceOfERC1155, claimTo, mintAdditionalSupplyTo } from 'thirdweb/extensions/erc1155';
 
 import {
   PauseIcon,
@@ -28,6 +31,7 @@ import { Asset } from 'livepeer/models/components';
 
 import { cn } from '@app/lib/utils';
 import Skeleton from '@app/components/ui/skeleton';
+import { client } from '@app/lib/sdk/thirdweb/client';
 import { useOrbisContext } from '@app/lib/sdk/orbisDB/context';
 import { AssetMetadata } from '@app/lib/sdk/orbisDB/models/AssetMetadata';
 import {
@@ -37,13 +41,22 @@ import {
   SubtitlesLangaugeSelect,
   useSubtitles,
 } from '@app/components/Player/Subtitles';
-import { getDetailPlaybackSource } from '@app/lib/utils/hooks/useDetailPlaybackSources';
 import { generateAccessKey } from '@app/lib/access-key';
 import { WebhookContext } from '@app/api/livepeer/token-gate/route';
+import { VIDEO_TOKEN_ADDRESS, VIDEO_TOKEN_ABI, CREATIVE_ADDRESS } from '@app/lib/utils/context';
+import { getDetailPlaybackSource } from '@app/lib/utils/hooks/useDetailPlaybackSources';
+import { Button } from '../ui/button';
 
 type VideoDetailsProps = {
   asset: Asset;
 };
+
+const contract = getContract({
+  client,
+  chain: base,
+  address: VIDEO_TOKEN_ADDRESS, 
+  abi: VIDEO_TOKEN_ABI
+});
 
 export default function VideoDetails({ asset }: VideoDetailsProps) {
   const [playbackSources, setPlaybackSources] = useState<Src[] | null>(null);
@@ -57,6 +70,22 @@ export default function VideoDetails({ asset }: VideoDetailsProps) {
   const { getAssetMetadata } = useOrbisContext();
   const { setSubtitles } = useSubtitles();
 
+  const [hasToken, setHasToken] = useState<boolean>(false);
+
+  const handleBuyNFT = async () => {
+    const transaction = claimTo({
+      contract,
+      to: activeAccount?.address!,
+      quantity: 1n,
+      tokenId: BigInt(assetMetadata?.tokenId!),
+    });
+    
+    const { transactionHash } = await sendTransaction({
+      transaction,
+      account: activeAccount!,
+    });
+  }
+
   useEffect(() => {
     const fetchPlaybackSources = async () => {
       const sources = await getDetailPlaybackSource(asset?.playbackId || '');
@@ -66,7 +95,15 @@ export default function VideoDetails({ asset }: VideoDetailsProps) {
       try {
         const assetMetadata = await getAssetMetadata(asset?.id);
         setAssetMetadata(assetMetadata);
-        assetMetadata?.subtitles && setSubtitles(assetMetadata?.subtitles);
+        setSubtitles(assetMetadata?.subtitles);
+        if (assetMetadata?.tokenGated) {
+          const videoTokenBalance = await balanceOfERC1155({
+            contract: contract,
+            tokenId: BigInt(assetMetadata?.tokenId || '0'),
+            owner: activeAccount?.address || '',
+          });
+          setHasToken(videoTokenBalance > 0n);
+        }
       } catch (error) {
         console.error('Error fetching asset metadata', error);
         setAssetMetadata(null);
@@ -321,156 +358,245 @@ export default function VideoDetails({ asset }: VideoDetailsProps) {
       </h1>
       {/* Render other asset details */}
       {playbackSources ? (
-        <>
-          <Player.Root src={playbackSources} {...conditionalProps}>
-            <Player.Container className="h-full w-full overflow-hidden bg-gray-800">
-              <Player.Video title={asset?.name} className="h-full w-full" />
-              {assetMetadata?.subtitles && (
-                <SubtitlesDisplay
-                  style={{
-                    color: '#EC407A',
-                    textShadow: '0 0 10px rgba(236, 64, 122, 0.5)',
-                  }}
-                />
-              )}
-              <Player.LoadingIndicator className="relative h-full w-full bg-black/50 backdrop-blur data-[visible=true]:animate-in data-[visible=false]:animate-out data-[visible=false]:fade-out-0 data-[visible=true]:fade-in-0">
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                  <LoadingIcon className="h-8 w-8 animate-spin" />
-                </div>
-                <PlayerLoading />
-              </Player.LoadingIndicator>
-
-              <Player.ErrorIndicator
-                matcher="all"
-                className="absolute inset-0 flex select-none flex-col items-center justify-center gap-4 bg-black/40 text-center backdrop-blur-lg duration-1000 data-[visible=true]:animate-in data-[visible=false]:animate-out data-[visible=false]:fade-out-0 data-[visible=true]:fade-in-0"
-              >
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                  <LoadingIcon className="h-8 w-8 animate-spin" />
-                </div>
-                <PlayerLoading />
-              </Player.ErrorIndicator>
-
-              <Player.ErrorIndicator
-                matcher="offline"
-                className="absolute inset-0 flex select-none flex-col items-center justify-center gap-4 bg-black/40 text-center backdrop-blur-lg duration-1000 animate-in fade-in-0 data-[visible=true]:animate-in data-[visible=false]:animate-out data-[visible=false]:fade-out-0 data-[visible=true]:fade-in-0"
-              >
-                <div className="flex flex-col gap-5">
-                  <div className="flex flex-col gap-1">
-                    <div className="text-lg font-bold sm:text-2xl">
-                      Stream is offline
-                    </div>
-                    <div className="text-xs text-gray-100 sm:text-sm">
-                      Playback will start automatically once the stream has
-                      started
-                    </div>
+        hasToken ? ( 
+          <>
+            <Player.Root src={playbackSources} {...conditionalProps}>
+              <Player.Container className="h-full w-full overflow-hidden bg-gray-800">
+                <Player.Video title={asset?.name} className="h-full w-full" />
+                {assetMetadata?.subtitles && (
+                  <SubtitlesDisplay
+                    style={{
+                      color: '#EC407A',
+                      textShadow: '0 0 10px rgba(236, 64, 122, 0.5)',
+                    }}
+                  />
+                )}
+                <Player.LoadingIndicator className="relative h-full w-full bg-black/50 backdrop-blur data-[visible=true]:animate-in data-[visible=false]:animate-out data-[visible=false]:fade-out-0 data-[visible=true]:fade-in-0">
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <LoadingIcon className="h-8 w-8 animate-spin" />
                   </div>
-                  <LoadingIcon className="mx-auto h-6 w-6 animate-spin md:h-8 md:w-8" />
-                </div>
-              </Player.ErrorIndicator>
+                  <PlayerLoading />
+                </Player.LoadingIndicator>
 
-              <Player.ErrorIndicator
-                matcher="access-control"
-                className="absolute inset-0 flex select-none flex-col items-center justify-center gap-4 bg-black/40 text-center backdrop-blur-lg duration-1000 data-[visible=true]:animate-in data-[visible=false]:animate-out data-[visible=false]:fade-out-0 data-[visible=true]:fade-in-0"
-              >
-                <div className="flex flex-col gap-5">
-                  <div className="flex flex-col gap-1">
-                    <div className="text-lg font-bold sm:text-2xl">
-                      Stream is private
-                    </div>
-                    <div className="text-xs text-gray-100 sm:text-sm">
-                      It looks like you don&apos;t have permission to view this
-                      content
-                    </div>
+                <Player.ErrorIndicator
+                  matcher="all"
+                  className="absolute inset-0 flex select-none flex-col items-center justify-center gap-4 bg-black/40 text-center backdrop-blur-lg duration-1000 data-[visible=true]:animate-in data-[visible=false]:animate-out data-[visible=false]:fade-out-0 data-[visible=true]:fade-in-0"
+                >
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <LoadingIcon className="h-8 w-8 animate-spin" />
                   </div>
-                  <LoadingIcon className="mx-auto h-6 w-6 animate-spin md:h-8 md:w-8" />
-                </div>
-              </Player.ErrorIndicator>
-              <Player.Controls className="flex flex-col-reverse gap-1 bg-gradient-to-b from-black/5 via-black/30 via-80% to-black/60 px-3 py-2 duration-1000 data-[visible=true]:animate-in data-[visible=false]:animate-out data-[visible=false]:fade-out-0 data-[visible=true]:fade-in-0 md:px-3">
-                <div className="flex justify-between gap-4">
-                  <div className="flex flex-1 items-center gap-3">
-                    <Player.PlayPauseTrigger className="h-6 w-6 flex-shrink-0 transition hover:scale-110">
-                      <Player.PlayingIndicator asChild matcher={false}>
-                        <PlayIcon
-                          className="h-full w-full"
-                          style={{ color: '#EC407A' }}
-                        />
-                      </Player.PlayingIndicator>
-                      <Player.PlayingIndicator asChild>
-                        <PauseIcon
-                          className="h-full w-full"
-                          style={{ color: '#EC407A' }}
-                        />
-                      </Player.PlayingIndicator>
-                    </Player.PlayPauseTrigger>
+                  <PlayerLoading />
+                </Player.ErrorIndicator>
 
-                    <Player.LiveIndicator className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-red-600" />
-                      <span className="select-none text-sm">LIVE</span>
-                    </Player.LiveIndicator>
-                    <Player.LiveIndicator
-                      matcher={false}
-                      className="flex items-center gap-2"
-                    >
-                      <Player.Time className="select-none text-sm tabular-nums text-gray-300" />
-                    </Player.LiveIndicator>
-
-                    <Player.MuteTrigger className="h-6 w-6 flex-shrink-0 transition hover:scale-110">
-                      <Player.VolumeIndicator asChild matcher={false}>
-                        <MuteIcon
-                          className="h-full w-full"
-                          style={{ color: '#EC407A' }}
-                        />
-                      </Player.VolumeIndicator>
-                      <Player.VolumeIndicator asChild matcher={true}>
-                        <UnmuteIcon className="h-full w-full text-gray-300" />
-                      </Player.VolumeIndicator>
-                    </Player.MuteTrigger>
-                    <Player.Volume className="group relative mr-1 flex h-5 max-w-[120px] flex-1 cursor-pointer touch-none select-none items-center">
-                      <Player.Track className="relative h-[2px] grow rounded-full bg-white/30 transition group-hover:h-[3px] md:h-[3px] group-hover:md:h-[4px]">
-                        <Player.Range className="absolute h-full rounded-full bg-gray-300" />
-                      </Player.Track>
-                      <Player.Thumb className="block h-3 w-3 rounded-full bg-white transition group-hover:scale-110" />
-                    </Player.Volume>
+                <Player.ErrorIndicator
+                  matcher="offline"
+                  className="absolute inset-0 flex select-none flex-col items-center justify-center gap-4 bg-black/40 text-center backdrop-blur-lg duration-1000 animate-in fade-in-0 data-[visible=true]:animate-in data-[visible=false]:animate-out data-[visible=false]:fade-out-0 data-[visible=true]:fade-in-0"
+                >
+                  <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-1">
+                      <div className="text-lg font-bold sm:text-2xl">
+                        Stream is offline
+                      </div>
+                      <div className="text-xs text-gray-100 sm:text-sm">
+                        Playback will start automatically once the stream has
+                        started
+                      </div>
+                    </div>
+                    <LoadingIcon className="mx-auto h-6 w-6 animate-spin md:h-8 md:w-8" />
                   </div>
-                  <div className="flex items-center justify-end gap-2.5 sm:flex-1 md:flex-[1.5]">
-                    {assetMetadata?.subtitles && <SubtitlesControl />}
-                    <Player.FullscreenIndicator matcher={false} asChild>
-                      <Settings className="h-6 w-6 flex-shrink-0 text-gray-300 transition" />
-                    </Player.FullscreenIndicator>
-                    {/* <Clip className="flex items-center w-6 h-6 justify-center" /> */}
+                </Player.ErrorIndicator>
 
-                    <Player.PictureInPictureTrigger className="h-6 w-6 flex-shrink-0 transition hover:scale-110">
-                      <PictureInPictureIcon
-                        className="h-full w-full"
-                        style={{ color: '#EE774D' }}
-                      />
-                    </Player.PictureInPictureTrigger>
+                <Player.ErrorIndicator
+                  matcher="access-control"
+                  className="absolute inset-0 flex select-none flex-col items-center justify-center gap-4 bg-black/40 text-center backdrop-blur-lg duration-1000 data-[visible=true]:animate-in data-[visible=false]:animate-out data-[visible=false]:fade-out-0 data-[visible=true]:fade-in-0"
+                >
+                  <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-1">
+                      <div className="text-lg font-bold sm:text-2xl">
+                        Stream is private
+                      </div>
+                      <div className="text-xs text-gray-100 sm:text-sm">
+                        It looks like you don&apos;t have permission to view this
+                        content
+                      </div>
+                    </div>
+                    <LoadingIcon className="mx-auto h-6 w-6 animate-spin md:h-8 md:w-8" />
+                  </div>
+                </Player.ErrorIndicator>
+                <Player.Controls className="flex flex-col-reverse gap-1 bg-gradient-to-b from-black/5 via-black/30 via-80% to-black/60 px-3 py-2 duration-1000 data-[visible=true]:animate-in data-[visible=false]:animate-out data-[visible=false]:fade-out-0 data-[visible=true]:fade-in-0 md:px-3">
+                  <div className="flex justify-between gap-4">
+                    <div className="flex flex-1 items-center gap-3">
+                      <Player.PlayPauseTrigger className="h-6 w-6 flex-shrink-0 transition hover:scale-110">
+                        <Player.PlayingIndicator asChild matcher={false}>
+                          <PlayIcon
+                            className="h-full w-full"
+                            style={{ color: '#EC407A' }}
+                          />
+                        </Player.PlayingIndicator>
+                        <Player.PlayingIndicator asChild>
+                          <PauseIcon
+                            className="h-full w-full"
+                            style={{ color: '#EC407A' }}
+                          />
+                        </Player.PlayingIndicator>
+                      </Player.PlayPauseTrigger>
 
-                    <Player.FullscreenTrigger className="h-6 w-6 flex-shrink-0 transition hover:scale-110">
-                      <Player.FullscreenIndicator asChild>
-                        <ExitFullscreenIcon
-                          className="h-full w-full"
-                          style={{ color: '#EC407A' }}
-                        />
-                      </Player.FullscreenIndicator>
+                      <Player.LiveIndicator className="flex items-center gap-2">
+                        <div className="h-1.5 w-1.5 rounded-full bg-red-600" />
+                        <span className="select-none text-sm">LIVE</span>
+                      </Player.LiveIndicator>
+                      <Player.LiveIndicator
+                        matcher={false}
+                        className="flex items-center gap-2"
+                      >
+                        <Player.Time className="select-none text-sm tabular-nums text-gray-300" />
+                      </Player.LiveIndicator>
 
+                      <Player.MuteTrigger className="h-6 w-6 flex-shrink-0 transition hover:scale-110">
+                        <Player.VolumeIndicator asChild matcher={false}>
+                          <MuteIcon
+                            className="h-full w-full"
+                            style={{ color: '#EC407A' }}
+                          />
+                        </Player.VolumeIndicator>
+                        <Player.VolumeIndicator asChild matcher={true}>
+                          <UnmuteIcon className="h-full w-full text-gray-300" />
+                        </Player.VolumeIndicator>
+                      </Player.MuteTrigger>
+                      <Player.Volume className="group relative mr-1 flex h-5 max-w-[120px] flex-1 cursor-pointer touch-none select-none items-center">
+                        <Player.Track className="relative h-[2px] grow rounded-full bg-white/30 transition group-hover:h-[3px] md:h-[3px] group-hover:md:h-[4px]">
+                          <Player.Range className="absolute h-full rounded-full bg-gray-300" />
+                        </Player.Track>
+                        <Player.Thumb className="block h-3 w-3 rounded-full bg-white transition group-hover:scale-110" />
+                      </Player.Volume>
+                    </div>
+                    <div className="flex items-center justify-end gap-2.5 sm:flex-1 md:flex-[1.5]">
+                      {assetMetadata?.subtitles && <SubtitlesControl />}
                       <Player.FullscreenIndicator matcher={false} asChild>
-                        <EnterFullscreenIcon
-                          className="h-full w-full"
-                          style={{ color: '#FACB80' }}
-                        />
+                        <Settings className="h-6 w-6 flex-shrink-0 text-gray-300 transition" />
                       </Player.FullscreenIndicator>
-                    </Player.FullscreenTrigger>
+                      {/* <Clip className="flex items-center w-6 h-6 justify-center" /> */}
+
+                      <Player.PictureInPictureTrigger className="h-6 w-6 flex-shrink-0 transition hover:scale-110">
+                        <PictureInPictureIcon
+                          className="h-full w-full"
+                          style={{ color: '#EE774D' }}
+                        />
+                      </Player.PictureInPictureTrigger>
+
+                      <Player.FullscreenTrigger className="h-6 w-6 flex-shrink-0 transition hover:scale-110">
+                        <Player.FullscreenIndicator asChild>
+                          <ExitFullscreenIcon
+                            className="h-full w-full"
+                            style={{ color: '#EC407A' }}
+                          />
+                        </Player.FullscreenIndicator>
+
+                        <Player.FullscreenIndicator matcher={false} asChild>
+                          <EnterFullscreenIcon
+                            className="h-full w-full"
+                            style={{ color: '#FACB80' }}
+                          />
+                        </Player.FullscreenIndicator>
+                      </Player.FullscreenTrigger>
+                    </div>
                   </div>
-                </div>
-                <Seek
-                  className="relative flex h-5 items-center "
-                  style={{ touchAction: 'none', userSelect: 'none' }}
-                />
-              </Player.Controls>
-            </Player.Container>
-          </Player.Root>
-        </>
+                  <Seek
+                    className="relative flex h-5 items-center "
+                    style={{ touchAction: 'none', userSelect: 'none' }}
+                  />
+                </Player.Controls>
+              </Player.Container>
+            </Player.Root>
+          </>
+        ) : (
+          <>
+            <p>This video is token gated. You must purchase an NFT to view this video.</p>
+            <Button onClick={handleBuyNFT} variant="secondary" className="mt-4" size="lg" disabled={isLoading}>
+              Buy NFT
+            </Button>
+            {/* <TransactionButton
+              payModal={{
+                metadata: {
+                  name: assetMetadata?.title,
+                  image: assetMetadata?.thumbnailUri    
+                },
+                buyWithCrypto: {
+                  testMode: false
+                },
+                buyWithFiat: {
+                  prefillSource: {
+                    currency: 'USD',
+                  },
+                },
+                purchaseData: {},
+                supportedTokens: {
+                  8453: [
+                    {
+                      address: '0xba5502db2aC2cBff189965e991C07109B14eB3f5',
+                      name: assetMetadata?.creatorAddress + ' meToken',
+                      symbol: 'meToken',
+                      icon: 'https://avatars.githubusercontent.com/u/78001565?s=200&v=4'
+                    },
+                    {
+                      address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+                      name: 'USDC',
+                      symbol: 'USDC',
+                      icon: 'https://bafybeidzrdgq3vllhxcza6uvkvecxdumgsgkrq22pm3sqdviujttridkku.ipfs.w3s.link/usd-coin-usdc-logo.png',
+                    },
+                  ],
+                },
+              }}
+              transaction={() => {
+                const transaction = mintAdditionalSupplyTo({
+                  contract,
+                  to: activeAccount?.address!,
+                  tokenId: BigInt(assetMetadata?.tokenId!),
+                  supply: 1n,
+                });
+                const tx = prepareContractCall({
+                  contract: contract,
+                  method: 'purchase',
+                  params: [
+                    [BigInt(assetMetadata?.tokenPrice!)],
+                    [activeAccount?.address],
+                    [CREATIVE_ADDRESS],
+                    [CREATIVE_ADDRESS],
+                    ['0x'],
+                  ],
+                  value: toWei(assetMetadata?.tokenPrice!.toString()!),
+                });
+                return tx;
+              }}
+              onTransactionConfirmed={() => {
+                toast('Transaction Successful');
+              }}
+              onError={() => {
+                toast('Transaction Failed');
+              }}
+            >
+              Buy Now
+            </TransactionButton> */}
+            {/* <ClaimButton
+              contractAddress={VIDEO_TOKEN_ADDRESS}
+              chain={base}
+              client={client}
+              claimParams={{
+                type: "ERC1155",
+                quantity: 1n,
+                tokenId: BigInt(assetMetadata?.tokenId!),
+              }}
+              payModal={{
+                metadata: {
+                  name: assetMetadata?.title,
+                  image: assetMetadata?.thumbnailUri    
+                }
+              }}
+            >
+              Claim now
+            </ClaimButton>; */}
+          </>
+        )
       ) : (
         <Skeleton className="h-96 w-full" />
       )}

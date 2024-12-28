@@ -26,7 +26,7 @@ import { FormControl } from '@chakra-ui/react';
 
 interface SubtitlesContextType {
   subtitles: Subtitles | undefined;
-  setSubtitles: (subtitles: Subtitles) => void;
+  setSubtitles: (subtitles: Subtitles | undefined) => void;
   showSubtitles: boolean;
   toggleSubtitles: () => void;
   language: string;
